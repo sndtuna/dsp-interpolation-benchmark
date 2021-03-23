@@ -22,8 +22,7 @@ fn main() {
 
     let mut writer = hound::WavWriter::create("spline_IR.wav", spec).unwrap();
     for s in impulse_response.iter() {
-        let amplitude = i16::MAX as f32;
-        writer.write_sample((s * amplitude) as i16).unwrap();
+        writer.write_sample(*s).unwrap();
     }
     println!("file written.");
 }

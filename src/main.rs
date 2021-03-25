@@ -1,3 +1,5 @@
+use std::ops::Index;
+use std::ops::IndexMut;
 use hound;
 fn main() {
     let spec = hound::WavSpec {
@@ -33,26 +35,37 @@ fn get_sample_interpolated(input:&[f32], int_i :isize, frac_i :f32) -> f32{
     // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
     
     // 4 input samples is the minimum sliding window size needed for cubic splines. 
-    let mut y = [0f32; 4];
+    struct SlidingWindow {
+        arr: [f32; 4],
+    }
     // interpolation can only be calculated for the middle segment of the sliding window.
     // the formulas assume that the interpolated segment has x values between 0 and 1.
-    // A translation function will be used to map x values to window indeces. 
-    fn at(x: isize) -> usize {
-        (x + 1) as usize
+    // An Index translation will be used to map x values to window indeces. 
+    impl Index<isize> for SlidingWindow {
+        type Output = f32;
+        fn index(&self, i: isize) -> &f32 {
+            &self.arr[(i+1) as usize]
+        }
     }
+    impl IndexMut<isize> for SlidingWindow {
+        fn index_mut(&mut self, i: isize) -> &mut f32 {
+            &mut self.arr[(i+1) as usize]
+        }
+    }
+    let mut y = SlidingWindow{arr: [0f32; 4]};
     // fill sliding window. use zero for indeces outside the input samples.
     for x in -1..3 as isize {
         if x+int_i >= 0 && x+int_i < input.len() as isize {
-            y[at(x)] = input[(x+int_i) as usize];
+            y[x] = input[(x+int_i) as usize];
         }else{
-            y[at(x)] = 0.0f32;
+            y[x] = 0.0f32;
         }
     }
     // cubic coefficients
-    let a: f32 = -0.5*y[at(-1)] +1.5*y[at(0)] -1.5*y[at(1)] +0.5*y[at(2)];
-    let b: f32 =      y[at(-1)] -2.5*y[at(0)] +2.0*y[at(1)] -0.5*y[at(2)];
-    let c: f32 = -0.5*y[at(-1)]               +0.5*y[at(1)]              ;
-    let d: f32 =                     y[at(0)]                            ;
+    let a: f32 = -0.5*y[-1] +1.5*y[0] -1.5*y[1] +0.5*y[2];
+    let b: f32 =      y[-1] -2.5*y[0] +2.0*y[1] -0.5*y[2];
+    let c: f32 = -0.5*y[-1]           +0.5*y[1]          ;
+    let d: f32 =                 y[0]                    ;
     // evaluate cubic at x. (frac_i is already in the same range as x)
     let x = frac_i;
     a*x*x*x + b*x*x + c*x + d

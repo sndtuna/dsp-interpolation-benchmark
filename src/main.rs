@@ -19,7 +19,7 @@ fn main() {
         let int_i = float_index as usize;
         let frac_i = float_index - (int_i as f32);
         impulse_response[response_i] = 
-                get_sample_interpolated(&impulse, int_i as isize, frac_i);
+                get_sample_interpolated_cubic(&impulse, int_i as isize, frac_i);
     }
 
     let mut writer = hound::WavWriter::create("spline_IR.wav", spec).unwrap();
@@ -29,11 +29,12 @@ fn main() {
     println!("file written.");
 }
 
-fn get_sample_interpolated(input:&[f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_cubic(input:&[f32], int_i :isize, frac_i :f32) -> f32{
     // references:
     // https://dsp.stackexchange.com/a/18273
     // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
-    
+    // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
+
     // 4 input samples is the minimum sliding window size needed for cubic splines. 
     struct SlidingWindow {
         arr: [f32; 4],
@@ -61,11 +62,22 @@ fn get_sample_interpolated(input:&[f32], int_i :isize, frac_i :f32) -> f32{
             y[x] = 0.0f32;
         }
     }
-    // cubic coefficients
-    let a: f32 = -0.5*y[-1] +1.5*y[0] -1.5*y[1] +0.5*y[2];
-    let b: f32 =      y[-1] -2.5*y[0] +2.0*y[1] -0.5*y[2];
-    let c: f32 = -0.5*y[-1]           +0.5*y[1]          ;
-    let d: f32 =                 y[0]                    ;
+    // set derivatives at the start/end of the interpolated segment using 
+    // central differences (Catmul-Rom).
+    let mut dy = SlidingWindow{arr: [0f32; 4]};
+    dy[0] = (y[1] - y[-1])*0.5;
+    dy[1] = (y[2] - y[0])*0.5; 
+    // linear equations that need to be satisfied: 
+    //  ax^3   +bx^2  +cx  +d = y[0]      (at x=0)
+    //  ax^3   +bx^2  +cx  +d = y[1]      (at x=1)
+    // 3ax^2  +2bx    +c      = dy[0]     (at x=0)
+    // 3ax^2  +2bx    +c      = dy[1]     (at x=1)
+    // 
+    // solved for a,b,c,d:
+    let a: f32 =  2.0*y[0] -2.0*y[1]     +dy[0]    +dy[1];
+    let b: f32 = -3.0*y[0] +3.0*y[1] -2.0*dy[0]    -dy[1];
+    let c: f32 =                          dy[0]          ;
+    let d: f32 =      y[0]                               ;
     // evaluate cubic at x. (frac_i is already in the same range as x)
     let x = frac_i;
     a*x*x*x + b*x*x + c*x + d

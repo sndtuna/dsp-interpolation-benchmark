@@ -9,8 +9,8 @@ fn main() {
         sample_format: hound::SampleFormat::Float,
     };
 
-    let mut impulse = vec![0f32; 8];
-    impulse[3] = 1.0f32;
+    let mut impulse = vec![0f32; 64];
+    impulse[32] = 1.0f32;
     let oversample_factor = 16;
     let oversample_factor_recip = (oversample_factor as f32).recip();
     let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
@@ -19,7 +19,7 @@ fn main() {
         let int_i = float_index as usize;
         let frac_i = float_index - (int_i as f32);
         impulse_response[response_i] = 
-                get_sample_interpolated_cubic(&impulse, int_i as isize, frac_i);
+                get_sample_interpolated_quintic(&impulse, int_i as isize, frac_i);
     }
 
     let mut writer = hound::WavWriter::create("spline_IR.wav", spec).unwrap();
@@ -81,4 +81,57 @@ fn get_sample_interpolated_cubic(input:&[f32], int_i :isize, frac_i :f32) -> f32
     // evaluate cubic at x. (frac_i is already in the same range as x)
     let x = frac_i;
     a*x*x*x + b*x*x + c*x + d
+}
+
+fn get_sample_interpolated_quintic(input:&[f32], int_i :isize, frac_i :f32) -> f32{
+    // references:
+    // https://dsp.stackexchange.com/a/18273
+    // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
+    // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
+
+    // 4 input samples is the minimum sliding window size needed for cubic splines. 
+    struct SlidingWindow {
+        arr: [f32; 6],
+    }
+    // interpolation can only be calculated for the middle segment of the sliding window.
+    // the formulas assume that the interpolated segment has x values between 0 and 1.
+    // An Index translation will be used to map x values to window indeces. 
+    impl Index<isize> for SlidingWindow {
+        type Output = f32;
+        fn index(&self, i: isize) -> &f32 {
+            &self.arr[(i+2) as usize]
+        }
+    }
+    impl IndexMut<isize> for SlidingWindow {
+        fn index_mut(&mut self, i: isize) -> &mut f32 {
+            &mut self.arr[(i+2) as usize]
+        }
+    }
+    let mut y = SlidingWindow{arr: [0f32; 6]};
+    // fill sliding window. use zero for indeces outside the input samples.
+    for x in -2..4 as isize {
+        if x+int_i >= 0 && x+int_i < input.len() as isize {
+            y[x] = input[(x+int_i) as usize];
+        }else{
+            y[x] = 0.0f32;
+        }
+    }
+    let x = frac_i;
+    let mut fourth_order_lagrange = [0f32; 2];
+    fourth_order_lagrange[0] = 
+             y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(1.0/24.0)
+            +y[-1]*(x+2.0)        *x*(x-1.0)*(x-2.0)*(-1.0/6.0)
+            +y[ 0]*(x+2.0)*(x+1.0)  *(x-1.0)*(x-2.0)*(1.0/4.0)
+            +y[ 1]*(x+2.0)*(x+1.0)*x        *(x-2.0)*(-1.0/6.0)
+            +y[ 2]*(x+2.0)*(x+1.0)*x*(x-1.0)        *(1.0/24.0);
+
+    fourth_order_lagrange[1] = 
+            y[-1]        *x*(x-1.0)*(x-2.0)*(x-3.0)*(1.0/24.0)
+           +y[ 0]*(x+1.0)  *(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/6.0)
+           +y[ 1]*(x+1.0)*x        *(x-2.0)*(x-3.0)*(1.0/4.0)
+           +y[ 2]*(x+1.0)*x*(x-1.0)        *(x-3.0)*(-1.0/6.0)
+           +y[ 3]*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/24.0);
+
+     fourth_order_lagrange[0]*(1.0-x)
+    +fourth_order_lagrange[1]*x
 }

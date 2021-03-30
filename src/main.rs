@@ -98,11 +98,9 @@ fn get_sample_interpolated_cubic(input:&[f32], int_i :isize, frac_i :f32) -> f32
 
 fn get_sample_interpolated_quintic(input:&[f32], int_i :isize, frac_i :f32) -> f32{
     // references:
-    // https://dsp.stackexchange.com/a/18273
-    // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
-    // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
+    // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
 
-    // 4 input samples is the minimum sliding window size needed for cubic splines. 
+    // 6 input samples is the minimum sliding window size needed for quintic splines. 
     struct SlidingWindow {
         arr: [f32; 6],
     }

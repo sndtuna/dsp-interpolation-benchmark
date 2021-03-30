@@ -2,28 +2,41 @@ use std::ops::Index;
 use std::ops::IndexMut;
 use hound;
 fn main() {
+    let mut impulse = vec![0f32; 64];
+    impulse[32] = 1.0f32;
+    let oversample_factor = 16;
+    let oversample_factor_recip = (oversample_factor as f32).recip();
+    let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
+
+    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+            get_sample_interpolated_quintic);
+    write_to_wav(&impulse_response,"spline_quintic_IR.wav");
+
+    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+            get_sample_interpolated_cubic);
+    write_to_wav(&impulse_response,"spline_cubic_IR.wav");
+}
+
+fn resample(src: &[f32], dest: &mut[f32], oversample_factor_recip: f32,
+            interp_func: fn(&[f32],isize,f32)->f32 ) {
+    for response_i in 0..dest.len() {
+        let float_index = response_i as f32 * oversample_factor_recip; 
+        let int_i = float_index as usize;
+        let frac_i = float_index - (int_i as f32);
+        dest[response_i] = 
+                interp_func(&src, int_i as isize, frac_i);
+    }
+}
+
+fn write_to_wav(v: &[f32], filename: &str) {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: 48000,
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
     };
-
-    let mut impulse = vec![0f32; 64];
-    impulse[32] = 1.0f32;
-    let oversample_factor = 16;
-    let oversample_factor_recip = (oversample_factor as f32).recip();
-    let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
-    for response_i in 0..impulse_response.len() {
-        let float_index = response_i as f32 * oversample_factor_recip; 
-        let int_i = float_index as usize;
-        let frac_i = float_index - (int_i as f32);
-        impulse_response[response_i] = 
-                get_sample_interpolated_quintic(&impulse, int_i as isize, frac_i);
-    }
-
-    let mut writer = hound::WavWriter::create("spline_IR.wav", spec).unwrap();
-    for s in impulse_response.iter() {
+    let mut writer = hound::WavWriter::create(filename, spec).unwrap();
+    for s in v.iter() {
         writer.write_sample(*s).unwrap();
     }
     println!("file written.");

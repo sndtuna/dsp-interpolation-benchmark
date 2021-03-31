@@ -10,11 +10,15 @@ fn main() {
 
     resample(&impulse, &mut impulse_response, oversample_factor_recip,
             get_sample_interpolated_quintic);
-    write_to_wav(&impulse_response,"spline_quintic_IR.wav");
+    write_to_wav(&impulse_response,"quintic_IR.wav");
+
+    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+            get_sample_interpolated_quintic_pure_lagrange);
+    write_to_wav(&impulse_response,"quintic_pure_lagrange_IR.wav");
 
     resample(&impulse, &mut impulse_response, oversample_factor_recip,
             get_sample_interpolated_cubic);
-    write_to_wav(&impulse_response,"spline_cubic_IR.wav");
+    write_to_wav(&impulse_response,"cubic_IR.wav");
 }
 
 fn resample(src: &[f32], dest: &mut[f32], oversample_factor_recip: f32,
@@ -145,4 +149,44 @@ fn get_sample_interpolated_quintic(input:&[f32], int_i :isize, frac_i :f32) -> f
 
      fourth_order_lagrange[0]*(1.0-x)
     +fourth_order_lagrange[1]*x
+}
+
+fn get_sample_interpolated_quintic_pure_lagrange(input:&[f32], int_i :isize, frac_i :f32) -> f32{
+    // 6 input samples is the minimum sliding window size needed for quintic splines. 
+    struct SlidingWindow {
+        arr: [f32; 6],
+    }
+    // interpolation can only be calculated for the middle segment of the sliding window.
+    // the formulas assume that the interpolated segment has x values between 0 and 1.
+    // An Index translation will be used to map x values to window indeces. 
+    impl Index<isize> for SlidingWindow {
+        type Output = f32;
+        fn index(&self, i: isize) -> &f32 {
+            &self.arr[(i+2) as usize]
+        }
+    }
+    impl IndexMut<isize> for SlidingWindow {
+        fn index_mut(&mut self, i: isize) -> &mut f32 {
+            &mut self.arr[(i+2) as usize]
+        }
+    }
+    let mut y = SlidingWindow{arr: [0f32; 6]};
+    // fill sliding window. use zero for indeces outside the input samples.
+    for x in -2..4 as isize {
+        if x+int_i >= 0 && x+int_i < input.len() as isize {
+            y[x] = input[(x+int_i) as usize];
+        }else{
+            y[x] = 0.0f32;
+        }
+    }
+    let x = frac_i;
+    let fifth_order_lagrange: f32 = 
+             y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/120.0)
+            +y[-1]*(x+2.0)        *x*(x-1.0)*(x-2.0)*(x-3.0)*(1.0/24.0)
+            +y[ 0]*(x+2.0)*(x+1.0)  *(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/12.0)
+            +y[ 1]*(x+2.0)*(x+1.0)*x        *(x-2.0)*(x-3.0)*(1.0/12.0)
+            +y[ 2]*(x+2.0)*(x+1.0)*x*(x-1.0)        *(x-3.0)*(-1.0/24.0)
+            +y[ 3]*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/120.0);
+
+    fifth_order_lagrange
 }

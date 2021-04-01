@@ -1,6 +1,7 @@
 use std::ops::Index;
 use std::ops::IndexMut;
 use hound;
+use std::f32::consts;
 fn main() {
     let mut impulse = vec![0f32; 64];
     impulse[32] = 1.0f32;
@@ -19,6 +20,11 @@ fn main() {
     resample(&impulse, &mut impulse_response, oversample_factor_recip,
             get_sample_interpolated_cubic);
     write_to_wav(&impulse_response,"cubic_IR.wav");
+
+    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+            get_sample_interpolated_truncated_sinc_6point);
+    write_to_wav(&impulse_response,"truncated_sinc_6point_IR.wav");
+
 }
 
 fn resample(src: &[f32], dest: &mut[f32], oversample_factor_recip: f32,
@@ -189,4 +195,51 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&[f32], int_i :isize, fra
             +y[ 3]*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/120.0);
 
     fifth_order_lagrange
+}
+
+fn get_sample_interpolated_truncated_sinc_6point(input:&[f32], int_i :isize, frac_i :f32) -> f32{
+    // 6 input samples is the minimum sliding window size needed for quintic splines. 
+    struct SlidingWindow {
+        arr: [f32; 6],
+    }
+    // interpolation can only be calculated for the middle segment of the sliding window.
+    // the formulas assume that the interpolated segment has x values between 0 and 1.
+    // An Index translation will be used to map x values to window indeces. 
+    impl Index<isize> for SlidingWindow {
+        type Output = f32;
+        fn index(&self, i: isize) -> &f32 {
+            &self.arr[(i+2) as usize]
+        }
+    }
+    impl IndexMut<isize> for SlidingWindow {
+        fn index_mut(&mut self, i: isize) -> &mut f32 {
+            &mut self.arr[(i+2) as usize]
+        }
+    }
+    let mut y = SlidingWindow{arr: [0f32; 6]};
+    // fill sliding window. use zero for indeces outside the input samples.
+    for x in -2..4 as isize {
+        if x+int_i >= 0 && x+int_i < input.len() as isize {
+            y[x] = input[(x+int_i) as usize];
+        }else{
+            y[x] = 0.0f32;
+        }
+    }
+    let t = frac_i;
+
+    let convolution = 
+            if t==0.0f32 {
+                y[0]
+            }else{ 
+                consts::FRAC_1_PI * ( 
+                    y[-2]*f32::sin(( 2.0+t)*consts::PI)/( 2.0+t)+
+                    y[-1]*f32::sin(( 1.0+t)*consts::PI)/( 1.0+t)+
+                    y[ 0]*f32::sin(( 0.0+t)*consts::PI)/( 0.0+t)+
+                    y[ 1]*f32::sin((-1.0+t)*consts::PI)/(-1.0+t)+
+                    y[ 2]*f32::sin((-2.0+t)*consts::PI)/(-2.0+t)+
+                    y[ 3]*f32::sin((-3.0+t)*consts::PI)/(-3.0+t)
+                )
+            };
+
+    convolution 
 }

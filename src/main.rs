@@ -2,6 +2,35 @@ use std::ops::Index;
 use std::ops::IndexMut;
 use hound;
 use std::f32::consts;
+
+/// local context around interpolation point
+struct SlidingWindow {
+    arr: Vec<f32>,
+    zero_index: isize,
+}
+impl SlidingWindow {
+    fn new(size: usize) -> Self {
+        SlidingWindow {
+            arr: vec![0f32; size],
+            zero_index: (size as isize-1)/2,
+        }
+    }
+}
+// interpolation can only be calculated for the middle segment of the sliding window.
+// the formulas assume that the interpolated segment has x values between 0 and 1.
+// An Index translation will be used to map x values to window indeces. 
+impl Index<isize> for SlidingWindow {
+    type Output = f32;
+    fn index(&self, i: isize) -> &f32 {
+        &self.arr[(i+self.zero_index) as usize]
+    }
+}
+impl IndexMut<isize> for SlidingWindow {
+    fn index_mut(&mut self, i: isize) -> &mut f32 {
+        &mut self.arr[(i+self.zero_index) as usize]
+    }
+}
+
 fn main() {
     let mut impulse = vec![0f32; 64];
     impulse[32] = 1.0f32;
@@ -59,24 +88,7 @@ fn get_sample_interpolated_cubic(input:&[f32], int_i :isize, frac_i :f32) -> f32
     // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
 
     // 4 input samples is the minimum sliding window size needed for cubic splines. 
-    struct SlidingWindow {
-        arr: [f32; 4],
-    }
-    // interpolation can only be calculated for the middle segment of the sliding window.
-    // the formulas assume that the interpolated segment has x values between 0 and 1.
-    // An Index translation will be used to map x values to window indeces. 
-    impl Index<isize> for SlidingWindow {
-        type Output = f32;
-        fn index(&self, i: isize) -> &f32 {
-            &self.arr[(i+1) as usize]
-        }
-    }
-    impl IndexMut<isize> for SlidingWindow {
-        fn index_mut(&mut self, i: isize) -> &mut f32 {
-            &mut self.arr[(i+1) as usize]
-        }
-    }
-    let mut y = SlidingWindow{arr: [0f32; 4]};
+    let mut y = SlidingWindow::new(4);
     // fill sliding window. use zero for indeces outside the input samples.
     for x in -1..3 as isize {
         if x+int_i >= 0 && x+int_i < input.len() as isize {
@@ -87,7 +99,7 @@ fn get_sample_interpolated_cubic(input:&[f32], int_i :isize, frac_i :f32) -> f32
     }
     // set derivatives at the start/end of the interpolated segment using 
     // central differences (Catmul-Rom).
-    let mut dy = SlidingWindow{arr: [0f32; 4]};
+    let mut dy = SlidingWindow::new(4);
     dy[0] = (y[1] - y[-1])*0.5;
     dy[1] = (y[2] - y[0])*0.5; 
     // linear equations that need to be satisfied: 
@@ -111,24 +123,7 @@ fn get_sample_interpolated_quintic(input:&[f32], int_i :isize, frac_i :f32) -> f
     // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
 
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
-    struct SlidingWindow {
-        arr: [f32; 6],
-    }
-    // interpolation can only be calculated for the middle segment of the sliding window.
-    // the formulas assume that the interpolated segment has x values between 0 and 1.
-    // An Index translation will be used to map x values to window indeces. 
-    impl Index<isize> for SlidingWindow {
-        type Output = f32;
-        fn index(&self, i: isize) -> &f32 {
-            &self.arr[(i+2) as usize]
-        }
-    }
-    impl IndexMut<isize> for SlidingWindow {
-        fn index_mut(&mut self, i: isize) -> &mut f32 {
-            &mut self.arr[(i+2) as usize]
-        }
-    }
-    let mut y = SlidingWindow{arr: [0f32; 6]};
+    let mut y = SlidingWindow::new(6);
     // fill sliding window. use zero for indeces outside the input samples.
     for x in -2..4 as isize {
         if x+int_i >= 0 && x+int_i < input.len() as isize {
@@ -159,24 +154,7 @@ fn get_sample_interpolated_quintic(input:&[f32], int_i :isize, frac_i :f32) -> f
 
 fn get_sample_interpolated_quintic_pure_lagrange(input:&[f32], int_i :isize, frac_i :f32) -> f32{
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
-    struct SlidingWindow {
-        arr: [f32; 6],
-    }
-    // interpolation can only be calculated for the middle segment of the sliding window.
-    // the formulas assume that the interpolated segment has x values between 0 and 1.
-    // An Index translation will be used to map x values to window indeces. 
-    impl Index<isize> for SlidingWindow {
-        type Output = f32;
-        fn index(&self, i: isize) -> &f32 {
-            &self.arr[(i+2) as usize]
-        }
-    }
-    impl IndexMut<isize> for SlidingWindow {
-        fn index_mut(&mut self, i: isize) -> &mut f32 {
-            &mut self.arr[(i+2) as usize]
-        }
-    }
-    let mut y = SlidingWindow{arr: [0f32; 6]};
+    let mut y = SlidingWindow::new(6);
     // fill sliding window. use zero for indeces outside the input samples.
     for x in -2..4 as isize {
         if x+int_i >= 0 && x+int_i < input.len() as isize {
@@ -199,24 +177,7 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&[f32], int_i :isize, fra
 
 fn get_sample_interpolated_truncated_sinc_6point(input:&[f32], int_i :isize, frac_i :f32) -> f32{
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
-    struct SlidingWindow {
-        arr: [f32; 6],
-    }
-    // interpolation can only be calculated for the middle segment of the sliding window.
-    // the formulas assume that the interpolated segment has x values between 0 and 1.
-    // An Index translation will be used to map x values to window indeces. 
-    impl Index<isize> for SlidingWindow {
-        type Output = f32;
-        fn index(&self, i: isize) -> &f32 {
-            &self.arr[(i+2) as usize]
-        }
-    }
-    impl IndexMut<isize> for SlidingWindow {
-        fn index_mut(&mut self, i: isize) -> &mut f32 {
-            &mut self.arr[(i+2) as usize]
-        }
-    }
-    let mut y = SlidingWindow{arr: [0f32; 6]};
+    let mut y = SlidingWindow::new(6);
     // fill sliding window. use zero for indeces outside the input samples.
     for x in -2..4 as isize {
         if x+int_i >= 0 && x+int_i < input.len() as isize {

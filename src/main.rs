@@ -2,7 +2,6 @@ use std::ops::Index;
 use std::ops::IndexMut;
 use hound;
 use std::f32::consts;
-use std::iter::repeat;
 
 /// local context around interpolation point
 struct SlidingWindow {
@@ -17,12 +16,8 @@ impl SlidingWindow {
         }
     }
     fn fill_from(&mut self, src: &[f32], zero_pos: usize) {
-        let zero_pad_left = repeat(&0f32).take(self.zero_index);
-        let zero_pad_right = repeat(&0f32).take(self.zero_index+1);
-        let padded_src_iter = 
-                zero_pad_left.chain(src.iter()).chain(zero_pad_right);
         for (win_sample, src_sample) in self.arr.iter_mut()
-                    .zip(padded_src_iter.skip(zero_pos)) {
+                    .zip(src.iter().skip(zero_pos)) {
             *win_sample = *src_sample;
         }
     }
@@ -46,30 +41,33 @@ fn main() {
     let mut impulse = vec![0f32; 64];
     impulse[32] = 1.0f32;
     let oversample_factor = 16;
-    let oversample_factor_recip = (oversample_factor as f32).recip();
     let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
 
-    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+    resample(&impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_quintic);
     write_to_wav(&impulse_response,"quintic_IR.wav");
 
-    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+    resample(&impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_quintic_pure_lagrange);
     write_to_wav(&impulse_response,"quintic_pure_lagrange_IR.wav");
 
-    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+    resample(&impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_cubic);
     write_to_wav(&impulse_response,"cubic_IR.wav");
 
-    resample(&impulse, &mut impulse_response, oversample_factor_recip,
+    resample(&impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_truncated_sinc_6point);
     write_to_wav(&impulse_response,"truncated_sinc_6point_IR.wav");
 
 }
 
-fn resample(src: &[f32], dest: &mut[f32], oversample_factor_recip: f32,
+fn resample(src: &[f32], dest: &mut[f32], oversample_factor: usize,
             interp_func: fn(&[f32],isize,f32)->f32 ) {
-    for response_i in 0..dest.len() {
+    let largest_window_size = 6;
+    let skip_lower_end = (largest_window_size/2-1) * oversample_factor;
+    let skip_higher_end = (largest_window_size/2) * oversample_factor;
+    let oversample_factor_recip = (oversample_factor as f32).recip();
+    for response_i in skip_lower_end..dest.len()-skip_higher_end {
         let float_index = response_i as f32 * oversample_factor_recip; 
         let int_i = float_index as usize;
         let frac_i = float_index - (int_i as f32);

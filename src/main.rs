@@ -2,17 +2,28 @@ use std::ops::Index;
 use std::ops::IndexMut;
 use hound;
 use std::f32::consts;
+use std::iter::repeat;
 
 /// local context around interpolation point
 struct SlidingWindow {
     arr: Vec<f32>,
-    zero_index: isize,
+    zero_index: usize,
 }
 impl SlidingWindow {
     fn new(size: usize) -> Self {
         SlidingWindow {
             arr: vec![0f32; size],
-            zero_index: (size as isize-1)/2,
+            zero_index: (size-1)/2,
+        }
+    }
+    fn fill_from(&mut self, src: &[f32], zero_pos: usize) {
+        let zero_pad_left = repeat(&0f32).take(self.zero_index);
+        let zero_pad_right = repeat(&0f32).take(self.zero_index+1);
+        let padded_src_iter = 
+                zero_pad_left.chain(src.iter()).chain(zero_pad_right);
+        for (win_sample, src_sample) in self.arr.iter_mut()
+                    .zip(padded_src_iter.skip(zero_pos)) {
+            *win_sample = *src_sample;
         }
     }
 }
@@ -22,12 +33,12 @@ impl SlidingWindow {
 impl Index<isize> for SlidingWindow {
     type Output = f32;
     fn index(&self, i: isize) -> &f32 {
-        &self.arr[(i+self.zero_index) as usize]
+        &self.arr[(i+(self.zero_index as isize)) as usize]
     }
 }
 impl IndexMut<isize> for SlidingWindow {
     fn index_mut(&mut self, i: isize) -> &mut f32 {
-        &mut self.arr[(i+self.zero_index) as usize]
+        &mut self.arr[(i+(self.zero_index as isize)) as usize]
     }
 }
 
@@ -90,13 +101,7 @@ fn get_sample_interpolated_cubic(input:&[f32], int_i :isize, frac_i :f32) -> f32
     // 4 input samples is the minimum sliding window size needed for cubic splines. 
     let mut y = SlidingWindow::new(4);
     // fill sliding window. use zero for indeces outside the input samples.
-    for x in -1..3 as isize {
-        if x+int_i >= 0 && x+int_i < input.len() as isize {
-            y[x] = input[(x+int_i) as usize];
-        }else{
-            y[x] = 0.0f32;
-        }
-    }
+    y.fill_from(input, int_i as usize);
     // set derivatives at the start/end of the interpolated segment using 
     // central differences (Catmul-Rom).
     let mut dy = SlidingWindow::new(4);
@@ -125,13 +130,7 @@ fn get_sample_interpolated_quintic(input:&[f32], int_i :isize, frac_i :f32) -> f
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
     let mut y = SlidingWindow::new(6);
     // fill sliding window. use zero for indeces outside the input samples.
-    for x in -2..4 as isize {
-        if x+int_i >= 0 && x+int_i < input.len() as isize {
-            y[x] = input[(x+int_i) as usize];
-        }else{
-            y[x] = 0.0f32;
-        }
-    }
+    y.fill_from(input, int_i as usize);
     let x = frac_i;
     let mut fourth_order_lagrange = [0f32; 2];
     fourth_order_lagrange[0] = 
@@ -156,13 +155,7 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&[f32], int_i :isize, fra
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
     let mut y = SlidingWindow::new(6);
     // fill sliding window. use zero for indeces outside the input samples.
-    for x in -2..4 as isize {
-        if x+int_i >= 0 && x+int_i < input.len() as isize {
-            y[x] = input[(x+int_i) as usize];
-        }else{
-            y[x] = 0.0f32;
-        }
-    }
+    y.fill_from(input, int_i as usize);
     let x = frac_i;
     let fifth_order_lagrange: f32 = 
              y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/120.0)
@@ -179,13 +172,7 @@ fn get_sample_interpolated_truncated_sinc_6point(input:&[f32], int_i :isize, fra
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
     let mut y = SlidingWindow::new(6);
     // fill sliding window. use zero for indeces outside the input samples.
-    for x in -2..4 as isize {
-        if x+int_i >= 0 && x+int_i < input.len() as isize {
-            y[x] = input[(x+int_i) as usize];
-        }else{
-            y[x] = 0.0f32;
-        }
-    }
+    y.fill_from(input, int_i as usize);
     let t = frac_i;
 
     let convolution = 

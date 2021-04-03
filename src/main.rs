@@ -182,3 +182,57 @@ fn get_sample_interpolated_truncated_sinc_6point(input:&mut [f32], int_i :isize,
 
     convolution 
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+    use rand::Rng;
+    use rand::SeedableRng;
+    use rand::distributions;
+
+    #[test]
+    fn benchmark_iterpolators() {
+        let rng = rand::rngs::StdRng::seed_from_u64(0u64);
+        const TESTLENGTH_SAMPLES: usize = 500000;
+        let mut noise: Vec<f32> = rng.sample_iter(distributions::Standard)
+                .take(TESTLENGTH_SAMPLES).collect();
+        let oversample_factor = 32;
+        let mut interpolated_noise = vec![0f32; noise.len() * oversample_factor];
+
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+            get_sample_interpolated_cubic);
+        println!("warmup: {} ms.", now.elapsed().as_millis());
+
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+            get_sample_interpolated_cubic);
+        println!("warmup2: {} ms.", now.elapsed().as_millis());
+
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+            get_sample_interpolated_cubic);
+        println!("warmup3: {} ms.", now.elapsed().as_millis());
+
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+                get_sample_interpolated_cubic);
+        println!("cubic: {} ms.", now.elapsed().as_millis());
+
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+                get_sample_interpolated_quintic);
+        println!("quintic: {} ms.", now.elapsed().as_millis());
+
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+                get_sample_interpolated_quintic_pure_lagrange);
+        println!("quintic_pure_lagrange: {} ms.", now.elapsed().as_millis());
+
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+                get_sample_interpolated_truncated_sinc_6point);
+        println!("truncated_sinc_6point: {} ms.", now.elapsed().as_millis());
+    }
+}

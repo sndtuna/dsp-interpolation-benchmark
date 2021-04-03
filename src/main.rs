@@ -69,13 +69,13 @@ fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: usize,
     let largest_window_size = 6;
     let skip_lower_end = (largest_window_size/2-1) * oversample_factor;
     let skip_higher_end = (largest_window_size/2) * oversample_factor;
-    let oversample_factor_recip = (oversample_factor as f32).recip();
+    let oversample_factor_recip = (oversample_factor as f64).recip();
     for response_i in skip_lower_end..dest.len()-skip_higher_end {
-        let float_index = response_i as f32 * oversample_factor_recip; 
-        let int_i = float_index as usize;
-        let frac_i = float_index - (int_i as f32);
+        let fp_i = response_i as f64 * oversample_factor_recip; 
+        let int_i = fp_i as usize;
+        let frac_i = fp_i - (int_i as f64);
         dest[response_i] = 
-                interp_func(src, int_i as isize, frac_i);
+                interp_func(src, int_i as isize, frac_i as f32);
     }
 }
 
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn benchmark_iterpolators() {
         let rng = rand::rngs::StdRng::seed_from_u64(0u64);
-        const TESTLENGTH_SAMPLES: usize = 500000;
+        const TESTLENGTH_SAMPLES: usize = 1000000;
         let mut noise: Vec<f32> = rng.sample_iter(distributions::Standard)
                 .take(TESTLENGTH_SAMPLES).collect();
         let oversample_factor = 32;

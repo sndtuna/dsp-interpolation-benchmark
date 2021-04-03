@@ -59,8 +59,8 @@ fn main() {
     write_to_wav(&impulse_response,"cubic_IR.wav");
 
     resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_truncated_sinc_6point);
-    write_to_wav(&impulse_response,"truncated_sinc_6point_IR.wav");
+            get_sample_interpolated_truncated_sinc);
+    write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
 
 }
 
@@ -166,27 +166,25 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize,
     fifth_order_lagrange
 }
 
-fn get_sample_interpolated_truncated_sinc_6point(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
-    // 6 input samples is the minimum sliding window size needed for quintic splines. 
+fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+    const WIDTH_IN_POINTS: usize = 6;
     // fill sliding window. use zero for indeces outside the input samples.
-    let y = SlidingWindow::new(input, int_i as usize, 6);
+    let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
-
-    let convolution = 
+    let convolution  = 
             if t==0.0f32 {
                 y[0]
-            }else{ 
-                consts::FRAC_1_PI * ( 
-                    y[-2]*f32::sin(( 2.0+t)*consts::PI)/( 2.0+t)+
-                    y[-1]*f32::sin(( 1.0+t)*consts::PI)/( 1.0+t)+
-                    y[ 0]*f32::sin(( 0.0+t)*consts::PI)/( 0.0+t)+
-                    y[ 1]*f32::sin((-1.0+t)*consts::PI)/(-1.0+t)+
-                    y[ 2]*f32::sin((-2.0+t)*consts::PI)/(-2.0+t)+
-                    y[ 3]*f32::sin((-3.0+t)*consts::PI)/(-3.0+t)
-                )
+            }else{
+                let mut sum = 0f32;
+                let t_pi = t*consts::PI;
+                for x_isize in y.x_range() {
+                    let x = x_isize as f32;
+                    let x_pi = x*consts::PI;
+                    sum += y[x_isize]*f32::sin(t_pi-x_pi)/(t_pi-x_pi);
+                }
+                sum
             };
-
-    convolution 
+    convolution
 }
 
 #[cfg(test)]
@@ -238,7 +236,7 @@ mod tests {
 
         let now = Instant::now();
         resample(&mut noise, &mut interpolated_noise, oversample_factor,
-                get_sample_interpolated_truncated_sinc_6point);
+                get_sample_interpolated_truncated_sinc);
         println!("truncated_sinc_6point: {} ms.", now.elapsed().as_millis());
     }
 }

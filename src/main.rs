@@ -1,5 +1,6 @@
 use std::ops::Index;
 use std::ops::IndexMut;
+use std::ops::Range;
 use hound;
 use std::f32::consts;
 
@@ -17,6 +18,11 @@ impl SlidingWindow<'_> {
             arr: &mut input[input_start..input_end],
             zero_index: window_middle_segment_start,
         }
+    }
+    fn x_range(&self) -> Range<isize> {
+        let x_lower_inclusive = -(self.zero_index as isize);
+        let x_upper_exclusive = self.arr.len() as isize - x_lower_inclusive;
+        x_lower_inclusive..x_upper_exclusive
     }
 }
 // interpolation can only be calculated for the middle segment of the sliding window.

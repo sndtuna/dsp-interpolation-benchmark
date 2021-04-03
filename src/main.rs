@@ -21,7 +21,7 @@ impl SlidingWindow<'_> {
     }
     fn x_range(&self) -> Range<isize> {
         let x_lower_inclusive = -(self.zero_index as isize);
-        let x_upper_exclusive = self.arr.len() as isize - x_lower_inclusive;
+        let x_upper_exclusive = self.arr.len() as isize + x_lower_inclusive;
         x_lower_inclusive..x_upper_exclusive
     }
 }

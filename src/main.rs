@@ -1,8 +1,11 @@
 use std::ops::Index;
 use std::ops::IndexMut;
 use std::ops::Range;
-use hound;
 use std::f32::consts;
+use std::time::Instant;
+use rand::Rng;
+use rand::SeedableRng;
+use rand::distributions;
 
 /// local context around interpolation segment
 struct SlidingWindow<'a> {
@@ -41,27 +44,47 @@ impl IndexMut<isize> for SlidingWindow<'_> {
 }
 
 fn main() {
-    let mut impulse = vec![0f32; 64];
-    impulse[32] = 1.0f32;
-    let oversample_factor = 16;
-    let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
+    let rng = rand::rngs::StdRng::seed_from_u64(0u64);
+    const TESTLENGTH_SAMPLES: usize = 1000000;
+    let mut noise: Vec<f32> = rng.sample_iter(distributions::Standard)
+            .take(TESTLENGTH_SAMPLES).collect();
+    let oversample_factor = 32;
+    let mut interpolated_noise = vec![0f32; noise.len() * oversample_factor];
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_quintic);
-    write_to_wav(&impulse_response,"quintic_IR.wav");
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+        get_sample_interpolated_cubic);
+    println!("warmup: {} ms.", now.elapsed().as_millis());
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_quintic_pure_lagrange);
-    write_to_wav(&impulse_response,"quintic_pure_lagrange_IR.wav");
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+        get_sample_interpolated_cubic);
+    println!("warmup2: {} ms.", now.elapsed().as_millis());
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+        get_sample_interpolated_cubic);
+    println!("warmup3: {} ms.", now.elapsed().as_millis());
+
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
             get_sample_interpolated_cubic);
-    write_to_wav(&impulse_response,"cubic_IR.wav");
+    println!("cubic: {} ms.", now.elapsed().as_millis());
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+            get_sample_interpolated_quintic);
+    println!("quintic: {} ms.", now.elapsed().as_millis());
+
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+            get_sample_interpolated_quintic_pure_lagrange);
+    println!("quintic_pure_lagrange: {} ms.", now.elapsed().as_millis());
+
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
             get_sample_interpolated_truncated_sinc);
-    write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
-
+    println!("truncated_sinc: {} ms.", now.elapsed().as_millis());
 }
 
 fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: usize,
@@ -77,20 +100,6 @@ fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: usize,
         dest[response_i] = 
                 interp_func(src, int_i as isize, frac_i as f32);
     }
-}
-
-fn write_to_wav(v: &[f32], filename: &str) {
-    let spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: 48000,
-        bits_per_sample: 32,
-        sample_format: hound::SampleFormat::Float,
-    };
-    let mut writer = hound::WavWriter::create(filename, spec).unwrap();
-    for s in v.iter() {
-        writer.write_sample(*s).unwrap();
-    }
-    println!("file written.");
 }
 
 fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
@@ -190,53 +199,43 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
-    use rand::Rng;
-    use rand::SeedableRng;
-    use rand::distributions;
+    use hound;
 
     #[test]
-    fn benchmark_iterpolators() {
-        let rng = rand::rngs::StdRng::seed_from_u64(0u64);
-        const TESTLENGTH_SAMPLES: usize = 1000000;
-        let mut noise: Vec<f32> = rng.sample_iter(distributions::Standard)
-                .take(TESTLENGTH_SAMPLES).collect();
-        let oversample_factor = 32;
-        let mut interpolated_noise = vec![0f32; noise.len() * oversample_factor];
+    fn write_impulse_response_files() {
+        let mut impulse = vec![0f32; 64];
+    impulse[32] = 1.0f32;
+    let oversample_factor = 16;
+    let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
 
-        let now = Instant::now();
-        resample(&mut noise, &mut interpolated_noise, oversample_factor,
+    resample(&mut impulse, &mut impulse_response, oversample_factor,
+            get_sample_interpolated_quintic);
+    write_to_wav(&impulse_response,"quintic_IR.wav");
+
+    resample(&mut impulse, &mut impulse_response, oversample_factor,
+            get_sample_interpolated_quintic_pure_lagrange);
+    write_to_wav(&impulse_response,"quintic_pure_lagrange_IR.wav");
+
+    resample(&mut impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_cubic);
-        println!("warmup: {} ms.", now.elapsed().as_millis());
+    write_to_wav(&impulse_response,"cubic_IR.wav");
 
-        let now = Instant::now();
-        resample(&mut noise, &mut interpolated_noise, oversample_factor,
-            get_sample_interpolated_cubic);
-        println!("warmup2: {} ms.", now.elapsed().as_millis());
+    resample(&mut impulse, &mut impulse_response, oversample_factor,
+            get_sample_interpolated_truncated_sinc);
+    write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
+    }
 
-        let now = Instant::now();
-        resample(&mut noise, &mut interpolated_noise, oversample_factor,
-            get_sample_interpolated_cubic);
-        println!("warmup3: {} ms.", now.elapsed().as_millis());
-
-        let now = Instant::now();
-        resample(&mut noise, &mut interpolated_noise, oversample_factor,
-                get_sample_interpolated_cubic);
-        println!("cubic: {} ms.", now.elapsed().as_millis());
-
-        let now = Instant::now();
-        resample(&mut noise, &mut interpolated_noise, oversample_factor,
-                get_sample_interpolated_quintic);
-        println!("quintic: {} ms.", now.elapsed().as_millis());
-
-        let now = Instant::now();
-        resample(&mut noise, &mut interpolated_noise, oversample_factor,
-                get_sample_interpolated_quintic_pure_lagrange);
-        println!("quintic_pure_lagrange: {} ms.", now.elapsed().as_millis());
-
-        let now = Instant::now();
-        resample(&mut noise, &mut interpolated_noise, oversample_factor,
-                get_sample_interpolated_truncated_sinc);
-        println!("truncated_sinc_6point: {} ms.", now.elapsed().as_millis());
+    fn write_to_wav(v: &[f32], filename: &str) {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut writer = hound::WavWriter::create(filename, spec).unwrap();
+        for s in v.iter() {
+            writer.write_sample(*s).unwrap();
+        }
+        println!("file written.");
     }
 }

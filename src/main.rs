@@ -45,7 +45,7 @@ impl IndexMut<isize> for SlidingWindow<'_> {
 
 fn main() {
     let rng = rand::rngs::StdRng::seed_from_u64(0u64);
-    const TESTLENGTH_SAMPLES: usize = 1000000;
+    const TESTLENGTH_SAMPLES: usize = 2000000;
     let mut noise: Vec<f32> = rng.sample_iter(distributions::Standard)
             .take(TESTLENGTH_SAMPLES).collect();
     let oversample_factor = 32;
@@ -186,10 +186,13 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
             }else{
                 let mut sum = 0f32;
                 let t_pi = t*consts::PI;
+                let sin_t_pi = f32::sin(t_pi);
+                let mut sin_t_pi_x_pi = -sin_t_pi;
                 for x_isize in y.x_range() {
                     let x = x_isize as f32;
                     let x_pi = x*consts::PI;
-                    sum += y[x_isize]*f32::sin(t_pi-x_pi)/(t_pi-x_pi);
+                    sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
+                    sum += y[x_isize]*sin_t_pi_x_pi/(t_pi-x_pi);
                 }
                 sum
             };

@@ -185,22 +185,21 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
     // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
-    let convolution  = 
-            if t==0.0f32 {
-                y[0]
-            }else{
-                let mut sum = 0f32;
-                let t_pi = t*consts::PI;
-                let sin_t_pi = f32::sin(t_pi);
-                let mut sin_t_pi_x_pi = -sin_t_pi;
-                for x_isize in y.x_range() {
-                    let x = x_isize as f32;
-                    let x_pi = x*consts::PI;
-                    sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
-                    sum += y[x_isize]*sin_t_pi_x_pi/(t_pi-x_pi);
-                }
-                sum
-            };
+    let convolution  = if t==0.0f32 {
+        y[0]
+    }else{
+        let mut sum = 0f32;
+        let t_pi = t*consts::PI;
+        let sin_t_pi = f32::sin(t_pi);
+        let mut sin_t_pi_x_pi = -sin_t_pi;
+        for x_isize in y.x_range() {
+            let x = x_isize as f32;
+            let x_pi = x*consts::PI;
+            sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
+            sum += y[x_isize]*sin_t_pi_x_pi/(t_pi-x_pi);
+        }
+        sum
+    };
     convolution
 }
 
@@ -209,27 +208,26 @@ fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :is
     // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
-    let convolution  = 
-            if t==0.0f32 {
-                y[0]
-            }else{
-                let mut sum = 0f32;
-                let sin_t_pi = {
-                    let a =  16.0f32-4.0f32*consts::PI;
-                    let b = -32.0f32+8.0f32*consts::PI;
-                    let c =  16.0f32-5.0f32*consts::PI;
-                    let d =   0.0f32+consts::PI;
-                    let e =   0.0f32;
-                    a*(t*t)*(t*t) + b*(t*t)*t + c*(t*t) + d*t + e
-                };
-                let mut sin_t_pi_x_pi = -sin_t_pi; 
-                for x_isize in y.x_range() {
-                    let x = x_isize as f32;
-                    sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
-                    sum += y[x_isize]*sin_t_pi_x_pi/(t-x);
-                }
-                sum*consts::FRAC_1_PI
-            };
+    let convolution  = if t==0.0f32 {
+        y[0]
+    }else{
+        let mut sum = 0f32;
+        let sin_t_pi = {
+            let a =  16.0f32-4.0f32*consts::PI;
+            let b = -32.0f32+8.0f32*consts::PI;
+            let c =  16.0f32-5.0f32*consts::PI;
+            let d =   0.0f32+consts::PI;
+            let e =   0.0f32;
+            a*(t*t)*(t*t) + b*(t*t)*t + c*(t*t) + d*t + e
+        };
+        let mut sin_t_pi_x_pi = -sin_t_pi; 
+        for x_isize in y.x_range() {
+            let x = x_isize as f32;
+            sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
+            sum += y[x_isize]*sin_t_pi_x_pi/(t-x);
+        }
+        sum*consts::FRAC_1_PI
+    };
     convolution
 }
 
@@ -241,29 +239,29 @@ mod tests {
     #[test]
     fn write_impulse_response_files() {
         let mut impulse = vec![0f32; 64];
-    impulse[32] = 1.0f32;
-    let oversample_factor = 16;
-    let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
+        impulse[32] = 1.0f32;
+        let oversample_factor = 16;
+        let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_quintic);
-    write_to_wav(&impulse_response,"quintic_IR.wav");
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                get_sample_interpolated_quintic);
+        write_to_wav(&impulse_response,"quintic_IR.wav");
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_quintic_pure_lagrange);
-    write_to_wav(&impulse_response,"quintic_pure_lagrange_IR.wav");
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                get_sample_interpolated_quintic_pure_lagrange);
+        write_to_wav(&impulse_response,"quintic_pure_lagrange_IR.wav");
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_cubic);
-    write_to_wav(&impulse_response,"cubic_IR.wav");
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                get_sample_interpolated_cubic);
+        write_to_wav(&impulse_response,"cubic_IR.wav");
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_truncated_sinc);
-    write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                get_sample_interpolated_truncated_sinc);
+        write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
 
-    resample(&mut impulse, &mut impulse_response, oversample_factor,
-        get_sample_interpolated_truncated_sinc_sin_approx);
-    write_to_wav(&impulse_response,"truncated_sinc_sin_approx_IR.wav");
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+            get_sample_interpolated_truncated_sinc_sin_approx);
+        write_to_wav(&impulse_response,"truncated_sinc_sin_approx_IR.wav");
     }
 
     fn write_to_wav(v: &[f32], filename: &str) {

@@ -88,6 +88,11 @@ fn main() {
 
     let now = Instant::now();
     resample(&mut noise, &mut interpolated_noise, oversample_factor,
+            get_sample_interpolated_hann_windowed_sinc);
+    println!("hann_windowed_sinc: {} ms.", now.elapsed().as_millis());
+
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
             get_sample_interpolated_truncated_sinc_sin_approx);
     println!("truncated_sinc_approx: {} ms.", now.elapsed().as_millis());
 }
@@ -203,6 +208,31 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
     convolution
 }
 
+fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+    const WIDTH_IN_POINTS: usize = 6;
+    let hann_window_freq = ((WIDTH_IN_POINTS as f32)*0.5f32).recip();
+    // fill sliding window. use zero for indeces outside the input samples.
+    let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
+    let t = frac_i;
+    let convolution  = if t==0.0f32 {
+        y[0]
+    }else{
+        let mut sum = 0f32;
+        let t_pi = t*consts::PI;
+        let sin_t_pi = f32::sin(t_pi);
+        let mut sin_t_pi_x_pi = -sin_t_pi;
+        for x_isize in y.x_range() {
+            let x = x_isize as f32;
+            let x_pi = x*consts::PI;
+            let window = 0.5f32 + 0.5f32*f32::cos((t_pi-x_pi)*hann_window_freq);
+            sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
+            sum += y[x_isize]*window*sin_t_pi_x_pi/(t_pi-x_pi);
+        }
+        sum
+    };
+    convolution
+}
+
 fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
     const WIDTH_IN_POINTS: usize = 6;
     // fill sliding window. use zero for indeces outside the input samples.
@@ -258,6 +288,10 @@ mod tests {
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_truncated_sinc);
         write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
+
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+            get_sample_interpolated_hann_windowed_sinc);
+        write_to_wav(&impulse_response,"hann_windowed_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_truncated_sinc_sin_approx);

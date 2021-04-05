@@ -85,6 +85,11 @@ fn main() {
     resample(&mut noise, &mut interpolated_noise, oversample_factor,
             get_sample_interpolated_truncated_sinc);
     println!("truncated_sinc: {} ms.", now.elapsed().as_millis());
+
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+            get_sample_interpolated_truncated_sinc_sin_approx);
+    println!("truncated_sinc_approx: {} ms.", now.elapsed().as_millis());
 }
 
 fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: usize,
@@ -199,6 +204,35 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
     convolution
 }
 
+fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+    const WIDTH_IN_POINTS: usize = 6;
+    // fill sliding window. use zero for indeces outside the input samples.
+    let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
+    let t = frac_i;
+    let convolution  = 
+            if t==0.0f32 {
+                y[0]
+            }else{
+                let mut sum = 0f32;
+                let sin_t_pi = {
+                    let a =  16.0f32-4.0f32*consts::PI;
+                    let b = -32.0f32+8.0f32*consts::PI;
+                    let c =  16.0f32-5.0f32*consts::PI;
+                    let d =   0.0f32+consts::PI;
+                    let e =   0.0f32;
+                    a*(t*t)*(t*t) + b*(t*t)*t + c*(t*t) + d*t + e
+                };
+                let mut sin_t_pi_x_pi = -sin_t_pi; 
+                for x_isize in y.x_range() {
+                    let x = x_isize as f32;
+                    sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
+                    sum += y[x_isize]*sin_t_pi_x_pi/(t-x);
+                }
+                sum*consts::FRAC_1_PI
+            };
+    convolution
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,6 +260,10 @@ mod tests {
     resample(&mut impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_truncated_sinc);
     write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
+
+    resample(&mut impulse, &mut impulse_response, oversample_factor,
+        get_sample_interpolated_truncated_sinc_sin_approx);
+    write_to_wav(&impulse_response,"truncated_sinc_sin_approx_IR.wav");
     }
 
     fn write_to_wav(v: &[f32], filename: &str) {

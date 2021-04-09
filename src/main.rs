@@ -49,7 +49,7 @@ fn main() {
     let mut noise: Vec<f32> = rng.sample_iter(distributions::Standard)
             .take(TESTLENGTH_SAMPLES).collect();
     let oversample_factor = 32;
-    let mut interpolated_noise = vec![0f32; noise.len() * oversample_factor];
+    let mut interpolated_noise = vec![0f32; noise.len() * oversample_factor as usize];
 
     let now = Instant::now();
     resample(&mut noise, &mut interpolated_noise, oversample_factor,
@@ -102,11 +102,11 @@ fn main() {
     println!("truncated_sinc_approx: {} ms.", now.elapsed().as_millis());
 }
 
-fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: usize,
+fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32,
             interp_func: fn(&mut [f32],isize,f32)->f32 ) {
     let largest_window_size = 6;
-    let skip_lower_end = (largest_window_size/2-1) * oversample_factor;
-    let skip_higher_end = (largest_window_size/2) * oversample_factor;
+    let skip_lower_end = (largest_window_size/2-1) * oversample_factor as usize;
+    let skip_higher_end = (largest_window_size/2) * oversample_factor as usize;
     let oversample_factor_recip = (oversample_factor as f64).recip();
     for response_i in skip_lower_end..dest.len()-skip_higher_end {
         let fp_i = response_i as f64 * oversample_factor_recip; 
@@ -281,42 +281,49 @@ mod tests {
     fn write_impulse_response_files() {
         let mut impulse = vec![0f32; 64];
         impulse[32] = 1.0f32;
-        let oversample_factor = 16;
-        let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
+        let oversample_factor = 32;
+        let mut impulse_response = vec![0f32; impulse.len() * oversample_factor as usize];
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_linear);
-        write_to_wav(&impulse_response,"linear_IR.wav");
+        write_to_wav(&impulse_response, oversample_factor, 
+            "linear_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_quintic);
-        write_to_wav(&impulse_response,"quintic_IR.wav");
+        write_to_wav(&impulse_response, oversample_factor, 
+            "quintic_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_quintic_pure_lagrange);
-        write_to_wav(&impulse_response,"quintic_pure_lagrange_IR.wav");
+        write_to_wav(&impulse_response, oversample_factor, 
+            "quintic_pure_lagrange_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_cubic);
-        write_to_wav(&impulse_response,"cubic_IR.wav");
+        write_to_wav(&impulse_response, oversample_factor, 
+            "cubic_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_truncated_sinc);
-        write_to_wav(&impulse_response,"truncated_sinc_IR.wav");
+        write_to_wav(&impulse_response, oversample_factor, 
+            "truncated_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_hann_windowed_sinc);
-        write_to_wav(&impulse_response,"hann_windowed_sinc_IR.wav");
+        write_to_wav(&impulse_response, oversample_factor, 
+            "hann_windowed_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_truncated_sinc_sin_approx);
-        write_to_wav(&impulse_response,"truncated_sinc_sin_approx_IR.wav");
+        write_to_wav(&impulse_response, oversample_factor, 
+            "truncated_sinc_sin_approx_IR.wav");
     }
 
-    fn write_to_wav(v: &[f32], filename: &str) {
+    fn write_to_wav(v: &[f32], oversample_factor: u32, filename: &str) {
         let spec = hound::WavSpec {
             channels: 1,
-            sample_rate: 48000,
+            sample_rate: oversample_factor*48000,
             bits_per_sample: 32,
             sample_format: hound::SampleFormat::Float,
         };

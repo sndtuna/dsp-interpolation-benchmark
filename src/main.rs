@@ -68,6 +68,11 @@ fn main() {
 
     let now = Instant::now();
     resample(&mut noise, &mut interpolated_noise, oversample_factor,
+        get_sample_interpolated_linear);
+    println!("linear: {} ms.", now.elapsed().as_millis());
+
+    let now = Instant::now();
+    resample(&mut noise, &mut interpolated_noise, oversample_factor,
             get_sample_interpolated_cubic);
     println!("cubic: {} ms.", now.elapsed().as_millis());
 
@@ -110,6 +115,12 @@ fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: usize,
         dest[response_i] = 
                 interp_func(src, int_i as isize, frac_i as f32);
     }
+}
+
+fn get_sample_interpolated_linear(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+    let y = SlidingWindow::new(input, int_i as usize, 2);
+    let x = frac_i;
+    y[0]*(1.0-x) + y[1]*x
 }
 
 fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
@@ -272,6 +283,10 @@ mod tests {
         impulse[32] = 1.0f32;
         let oversample_factor = 16;
         let mut impulse_response = vec![0f32; impulse.len() * oversample_factor];
+
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                get_sample_interpolated_linear);
+        write_to_wav(&impulse_response,"linear_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_quintic);

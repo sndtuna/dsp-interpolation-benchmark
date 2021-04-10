@@ -51,55 +51,55 @@ fn main() {
     let oversample_factor = 32;
     let mut interpolated_noise = vec![0f32; noise.len() * oversample_factor as usize];
 
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
-        get_sample_interpolated_cubic);
-    println!("warmup: {} ms.", now.elapsed().as_millis());
-
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
-        get_sample_interpolated_cubic);
-    println!("warmup2: {} ms.", now.elapsed().as_millis());
-
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
-        get_sample_interpolated_cubic);
-    println!("warmup3: {} ms.", now.elapsed().as_millis());
-
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
-        get_sample_interpolated_linear);
-    println!("linear: {} ms.", now.elapsed().as_millis());
-
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "warmup1", 
             get_sample_interpolated_cubic);
-    println!("cubic: {} ms.", now.elapsed().as_millis());
 
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "warmup2", 
+            get_sample_interpolated_cubic);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "warmup3", 
+            get_sample_interpolated_cubic);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "linear", 
+            get_sample_interpolated_linear);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "cubic", 
+            get_sample_interpolated_cubic);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "quintic", 
             get_sample_interpolated_quintic);
-    println!("quintic: {} ms.", now.elapsed().as_millis());
 
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "quintic pure lagrange", 
             get_sample_interpolated_quintic_pure_lagrange);
-    println!("quintic_pure_lagrange: {} ms.", now.elapsed().as_millis());
 
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "truncated sinc", 
             get_sample_interpolated_truncated_sinc);
-    println!("truncated_sinc: {} ms.", now.elapsed().as_millis());
 
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "hann windowed sinc", 
             get_sample_interpolated_hann_windowed_sinc);
-    println!("hann_windowed_sinc: {} ms.", now.elapsed().as_millis());
 
-    let now = Instant::now();
-    resample(&mut noise, &mut interpolated_noise, oversample_factor,
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "truncated sinc(sin approx.)", 
             get_sample_interpolated_truncated_sinc_sin_approx);
-    println!("truncated_sinc_approx: {} ms.", now.elapsed().as_millis());
+}
+
+fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32], 
+        oversample_factor: u32, fn_print_name: &str, 
+        interp_func: fn(&mut [f32],isize,f32)->f32 ) {
+    let now = Instant::now(); 
+    let num_samples = dest.len() as u128;
+    resample(src, dest, oversample_factor, interp_func);
+    println!("{:<28}{:>6}ns/sample.", fn_print_name.to_owned()+":", 
+            now.elapsed().as_nanos()/num_samples);
 }
 
 fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32,

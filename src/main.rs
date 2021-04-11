@@ -44,12 +44,28 @@ impl IndexMut<isize> for SlidingWindow<'_> {
 }
 
 fn main() {
-    let rng = rand::rngs::StdRng::seed_from_u64(0u64);
-    const TESTLENGTH_SAMPLES: usize = 2000000;
-    let mut noise: Vec<f32> = rng.sample_iter(distributions::Standard)
-            .take(TESTLENGTH_SAMPLES).collect();
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0u64);
+    let mut testlength_samples: usize = 4096;
+    let mut noise: Vec<f32>; 
     let oversample_factor = 32;
-    let mut interpolated_noise = vec![0f32; noise.len() * oversample_factor as usize];
+    let mut interpolated_noise: Vec<f32>;
+    // find a test signal length where the benchmark doesn't finish too quickly if 
+    // the fastest interpolation method is used.
+    loop { 
+        noise = (&mut rng).sample_iter(distributions::Standard)
+            .take(testlength_samples).collect();
+        interpolated_noise = vec![0f32; noise.len() * oversample_factor as usize];
+        let now = Instant::now();
+        resample(&mut noise, &mut interpolated_noise, oversample_factor, 
+                get_sample_interpolated_linear);
+        let time_per_task = now.elapsed().as_secs_f64();
+        if time_per_task > 0.025f64 {
+            break
+        }else{
+            testlength_samples *= 2;
+        }
+    }
+    println!("\nUsing test length of {} samples...\n", testlength_samples);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
             oversample_factor, "warmup1", 
@@ -90,6 +106,7 @@ fn main() {
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
             oversample_factor, "truncated sinc(sin approx.)", 
             get_sample_interpolated_truncated_sinc_sin_approx);
+
 }
 
 fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32], 

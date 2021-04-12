@@ -113,10 +113,10 @@ fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32],
         oversample_factor: u32, fn_print_name: &str, 
         interp_func: fn(&mut [f32],isize,f32)->f32 ) {
     let now = Instant::now(); 
-    let num_samples = dest.len() as u128;
+    let generated_samples = dest.len() as f64;
     resample(src, dest, oversample_factor, interp_func);
-    println!("{:<28}{:>6}ns/sample.", fn_print_name.to_owned()+":", 
-            now.elapsed().as_nanos()/num_samples);
+    println!("{:<28}{:>6.1} ns/sample.", fn_print_name.to_owned()+":", 
+            now.elapsed().as_secs_f64()*1e9/generated_samples);
 }
 
 fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32,

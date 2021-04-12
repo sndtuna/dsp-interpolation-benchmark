@@ -304,37 +304,37 @@ mod tests {
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_linear);
         write_to_wav(&impulse_response, oversample_factor, 
-            "linear_IR.wav");
+            "impulse-responses/linear_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_quintic);
         write_to_wav(&impulse_response, oversample_factor, 
-            "quintic_IR.wav");
+            "impulse-responses/quintic_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_quintic_pure_lagrange);
         write_to_wav(&impulse_response, oversample_factor, 
-            "quintic_pure_lagrange_IR.wav");
+            "impulse-responses/quintic_pure_lagrange_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_cubic);
         write_to_wav(&impulse_response, oversample_factor, 
-            "cubic_IR.wav");
+            "impulse-responses/cubic_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 get_sample_interpolated_truncated_sinc);
         write_to_wav(&impulse_response, oversample_factor, 
-            "truncated_sinc_IR.wav");
+            "impulse-responses/truncated_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_hann_windowed_sinc);
         write_to_wav(&impulse_response, oversample_factor, 
-            "hann_windowed_sinc_IR.wav");
+            "impulse-responses/hann_windowed_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
             get_sample_interpolated_truncated_sinc_sin_approx);
         write_to_wav(&impulse_response, oversample_factor, 
-            "truncated_sinc_sin_approx_IR.wav");
+            "impulse-responses/truncated_sinc_sin_approx_IR.wav");
     }
 
     fn write_to_wav(v: &[f32], oversample_factor: u32, filename: &str) {

@@ -147,11 +147,10 @@ fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32) ->
     // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
 
     // 4 input samples is the minimum sliding window size needed for cubic splines. 
-    // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, 4);
     // set derivatives at the start/end of the interpolated segment using 
     // central differences (Catmul-Rom).
-    let mut dy = [0f32; 2];//two less, because edges have no finite differences.
+    let mut dy = [0f32; 2];//only two, because edges have no finite differences.
     dy[0] = (y[1] - y[-1])*0.5;
     dy[1] = (y[2] - y[0])*0.5; 
     // linear equations that need to be satisfied: 
@@ -175,9 +174,10 @@ fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32) 
     // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
 
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
-    // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, 6);
     let x = frac_i;
+    // polynomial interpolation of degree N can be made by linear interpolating 
+    // between two polynomial interpolations of degree (N-1).
     let mut fourth_order_lagrange = [0f32; 2];
     fourth_order_lagrange[0] = 
              y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(1.0/24.0)
@@ -199,7 +199,6 @@ fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32) 
 
 fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
-    // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, 6);
     let x = frac_i;
     let fifth_order_lagrange: f32 = 
@@ -215,7 +214,6 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize,
 
 fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
     const WIDTH_IN_POINTS: usize = 6;
-    // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
     let convolution  = if t==0.0f32 {
@@ -239,7 +237,6 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
 fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
     const WIDTH_IN_POINTS: usize = 6;
     let hann_window_freq = ((WIDTH_IN_POINTS as f32)*0.5f32).recip();
-    // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
     let convolution  = if t==0.0f32 {
@@ -263,13 +260,24 @@ fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, fr
 
 fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
     const WIDTH_IN_POINTS: usize = 6;
-    // fill sliding window. use zero for indeces outside the input samples.
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
     let convolution  = if t==0.0f32 {
         y[0]
     }else{
         let mut sum = 0f32;
+        // linear equations for the sin(x*PI) approximation polynomial:  
+        // only half of the sin cycle is approximated.
+        // The polynomial needs to pass trough 3 points. The derivative at the 
+        // outer two points is also constrained, because the sinc formula is
+        // sensitive to that.
+        //  ax^4   +bx^3   +cx^2   +dx   +e =   0      (at x=0)
+        //  ax^4   +bx^3   +cx^2   +dx   +e =   1      (at x=0.5)
+        //  ax^4   +bx^3   +cx^2   +dx   +e =   0      (at x=1)
+        // 4ax^3  +3bx^2  +2cx^1   +d       =  PI      (at x=0)
+        // 4ax^3  +3bx^2  +2cx^1   +d       = -PI      (at x=1)
+        // 
+        // solved for a,b,c,d:
         let sin_t_pi = {
             let a =  16.0f32-4.0f32*consts::PI;
             let b = -32.0f32+8.0f32*consts::PI;

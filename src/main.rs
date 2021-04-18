@@ -303,14 +303,9 @@ fn get_sample_interpolated_truncated_sinc_reference(input:&mut [f32], int_i :isi
         y[0]
     }else{
         let mut sum = 0f32;
-        let t_pi = t*consts::PI;
-        let sin_t_pi = f32::sin(t_pi);
-        let mut sin_t_pi_x_pi = -sin_t_pi;
         for x_isize in y.x_range() {
             let x = x_isize as f32;
-            let x_pi = x*consts::PI;
-            sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
-            sum += y[x_isize]*sin_t_pi_x_pi/(t_pi-x_pi);
+            sum += y[x_isize]*f32::sin((t-x)*consts::PI)/((t-x)*consts::PI);
         }
         sum
     };
@@ -350,15 +345,10 @@ fn get_sample_interpolated_hann_windowed_sinc_reference(input:&mut [f32], int_i 
         y[0]
     }else{
         let mut sum = 0f32;
-        let t_pi = t*consts::PI;
-        let sin_t_pi = f32::sin(t_pi);
-        let mut sin_t_pi_x_pi = -sin_t_pi;
         for x_isize in y.x_range() {
             let x = x_isize as f32;
-            let x_pi = x*consts::PI;
-            let window = 0.5f32 + 0.5f32*f32::cos((t_pi-x_pi)*hann_window_freq);
-            sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
-            sum += y[x_isize]*window*sin_t_pi_x_pi/(t_pi-x_pi);
+            let window = 0.5f32 + 0.5f32*f32::cos((t-x)*consts::PI*hann_window_freq);
+            sum += y[x_isize]*window*f32::sin((t-x)*consts::PI)/((t-x)*consts::PI);
         }
         sum
     };

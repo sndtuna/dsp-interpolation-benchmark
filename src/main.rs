@@ -57,7 +57,7 @@ fn main() {
         interpolated_noise = vec![0f32; noise.len() * oversample_factor as usize];
         let now = Instant::now();
         resample(&mut noise, &mut interpolated_noise, oversample_factor, 
-                get_sample_interpolated_linear);
+                None, get_sample_interpolated_linear);
         let time_per_task = now.elapsed().as_secs_f64();
         if time_per_task > 0.025f64 {
             break
@@ -68,59 +68,60 @@ fn main() {
     println!("\nUsing test length of {} samples...\n", testlength_samples);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "warmup1", 
+            oversample_factor, "warmup1", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "warmup2", 
+            oversample_factor, "warmup2", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "warmup3", 
+            oversample_factor, "warmup3", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "linear", 
+            oversample_factor, "linear", None, 
             get_sample_interpolated_linear);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "cubic", 
+            oversample_factor, "cubic", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic", 
+            oversample_factor, "quintic", None, 
             get_sample_interpolated_quintic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic pure lagrange", 
+            oversample_factor, "quintic pure lagrange", None, 
             get_sample_interpolated_quintic_pure_lagrange);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "truncated sinc", 
+            oversample_factor, "truncated sinc", None, 
             get_sample_interpolated_truncated_sinc);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "hann windowed sinc", 
+            oversample_factor, "hann windowed sinc", None, 
             get_sample_interpolated_hann_windowed_sinc);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "truncated sinc(sin approx.)", 
+            oversample_factor, "truncated sinc(sin approx.)", None, 
             get_sample_interpolated_truncated_sinc_sin_approx);
 
 }
 
 fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32], 
-        oversample_factor: u32, fn_print_name: &str, 
-        interp_func: fn(&mut [f32],isize,f32)->f32 ) {
+        oversample_factor: u32, fn_print_name: &str, filter_size_points: Option<usize>, 
+        interp_func: fn(&mut [f32],isize,f32,Option<usize>)->f32 ) {
     let now = Instant::now(); 
     let generated_samples = dest.len() as f64;
-    resample(src, dest, oversample_factor, interp_func);
+    resample(src, dest, oversample_factor, filter_size_points, interp_func);
     println!("{:<28}{:>6.1} ns/sample.", fn_print_name.to_owned()+":", 
             now.elapsed().as_secs_f64()*1e9/generated_samples);
 }
 
-fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32,
-            interp_func: fn(&mut [f32],isize,f32)->f32 ) {
+fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32, 
+            filter_size_points: Option<usize>, 
+            interp_func: fn(&mut [f32],isize,f32,Option<usize>)->f32 ) {
     let largest_window_size = 6;
     let skip_lower_end = (largest_window_size/2-1) * oversample_factor as usize;
     let skip_higher_end = (largest_window_size/2) * oversample_factor as usize;
@@ -130,17 +131,19 @@ fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32,
         let int_i = fp_i as usize;
         let frac_i = fp_i - (int_i as f64);
         dest[response_i] = 
-                interp_func(src, int_i as isize, frac_i as f32);
+                interp_func(src, int_i as isize, frac_i as f32, filter_size_points);
     }
 }
 
-fn get_sample_interpolated_linear(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_linear(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
     let y = SlidingWindow::new(input, int_i as usize, 2);
     let x = frac_i;
     y[0]*(1.0-x) + y[1]*x
 }
 
-fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
     // references:
     // https://dsp.stackexchange.com/a/18273
     // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
@@ -169,7 +172,8 @@ fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32) ->
     a*x*x*x + b*x*x + c*x + d
 }
 
-fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
     // references:
     // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
 
@@ -197,7 +201,8 @@ fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32) 
     +fourth_order_lagrange[1]*x
 }
 
-fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
     let y = SlidingWindow::new(input, int_i as usize, 6);
     let x = frac_i;
@@ -212,7 +217,8 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize,
     fifth_order_lagrange
 }
 
-fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
     const WIDTH_IN_POINTS: usize = 6;
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
@@ -234,7 +240,8 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
     convolution
 }
 
-fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
     const WIDTH_IN_POINTS: usize = 6;
     let hann_window_freq = ((WIDTH_IN_POINTS as f32)*0.5f32).recip();
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
@@ -258,7 +265,8 @@ fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, fr
     convolution
 }
 
-fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :isize, frac_i :f32) -> f32{
+fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
     const WIDTH_IN_POINTS: usize = 6;
     let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
     let t = frac_i;
@@ -310,37 +318,37 @@ mod tests {
         let mut impulse_response = vec![0f32; impulse.len() * oversample_factor as usize];
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-                get_sample_interpolated_linear);
+                None, get_sample_interpolated_linear);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/linear_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-                get_sample_interpolated_quintic);
+                None, get_sample_interpolated_quintic);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/quintic_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-                get_sample_interpolated_quintic_pure_lagrange);
+                None, get_sample_interpolated_quintic_pure_lagrange);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/quintic_pure_lagrange_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-                get_sample_interpolated_cubic);
+                None, get_sample_interpolated_cubic);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/cubic_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-                get_sample_interpolated_truncated_sinc);
+                None, get_sample_interpolated_truncated_sinc);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/truncated_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_hann_windowed_sinc);
+            None, get_sample_interpolated_hann_windowed_sinc);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/hann_windowed_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-            get_sample_interpolated_truncated_sinc_sin_approx);
+            None, get_sample_interpolated_truncated_sinc_sin_approx);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/truncated_sinc_sin_approx_IR.wav");
     }

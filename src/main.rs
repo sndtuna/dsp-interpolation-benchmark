@@ -107,6 +107,28 @@ fn main() {
             oversample_factor, "truncated sinc(sin approx.)", Some(6), 
             get_sample_interpolated_truncated_sinc_sin_approx);
 
+    println!("------------unoptimized-implementations-----------");
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "cubic(reference)", None, 
+            get_sample_interpolated_cubic_reference);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "quintic(reference)", None, 
+            get_sample_interpolated_quintic_reference);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "quintic pure lagrange(reference)", None, 
+            get_sample_interpolated_quintic_pure_lagrange_reference);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "truncated sinc(reference)", Some(6), 
+            get_sample_interpolated_truncated_sinc_reference);
+
+    run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
+            oversample_factor, "hann windowed sinc(reference)", Some(6), 
+            get_sample_interpolated_hann_windowed_sinc_reference);
+
 }
 
 fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32], 
@@ -115,7 +137,7 @@ fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32],
     let now = Instant::now(); 
     let generated_samples = dest.len() as f64;
     resample(src, dest, oversample_factor, filter_size_points, interp_func);
-    println!("{:<28}{:>6.1} ns/sample.", fn_print_name.to_owned()+":", 
+    println!("{:<33}{:>6.1} ns/sample.", fn_print_name.to_owned()+":", 
             now.elapsed().as_secs_f64()*1e9/generated_samples);
 }
 
@@ -140,6 +162,36 @@ fn get_sample_interpolated_linear(input:&mut [f32], int_i :isize, frac_i :f32,
     let y = SlidingWindow::new(input, int_i as usize, 2);
     let x = frac_i;
     y[0]*(1.0-x) + y[1]*x
+}
+
+fn get_sample_interpolated_cubic_reference(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
+    // references:
+    // https://dsp.stackexchange.com/a/18273
+    // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
+    // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
+
+    // 4 input samples is the minimum sliding window size needed for cubic splines. 
+    let y = SlidingWindow::new(input, int_i as usize, 4);
+    // set derivatives at the start/end of the interpolated segment using 
+    // central differences (Catmul-Rom).
+    let mut dy = [0f32; 2];//only two, because edges have no finite differences.
+    dy[0] = (y[1] - y[-1])*0.5;
+    dy[1] = (y[2] - y[0])*0.5; 
+    // linear equations that need to be satisfied: 
+    //  ax^3   +bx^2  +cx  +d = y[0]      (at x=0)
+    //  ax^3   +bx^2  +cx  +d = y[1]      (at x=1)
+    // 3ax^2  +2bx    +c      = dy[0]     (at x=0)
+    // 3ax^2  +2bx    +c      = dy[1]     (at x=1)
+    // 
+    // solved for a,b,c,d:
+    let a: f32 =  2.0*y[0] -2.0*y[1]     +dy[0]    +dy[1];
+    let b: f32 = -3.0*y[0] +3.0*y[1] -2.0*dy[0]    -dy[1];
+    let c: f32 =                          dy[0]          ;
+    let d: f32 =      y[0]                               ;
+    // evaluate cubic at x. (frac_i is already in the same range as x)
+    let x = frac_i;
+    a*x*x*x + b*x*x + c*x + d
 }
 
 fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32, 
@@ -172,6 +224,35 @@ fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32,
     a*x*x*x + b*x*x + c*x + d
 }
 
+fn get_sample_interpolated_quintic_reference(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
+    // references:
+    // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
+
+    // 6 input samples is the minimum sliding window size needed for quintic splines. 
+    let y = SlidingWindow::new(input, int_i as usize, 6);
+    let x = frac_i;
+    // polynomial interpolation of degree N can be made by linear interpolating 
+    // between two polynomial interpolations of degree (N-1).
+    let mut fourth_order_lagrange = [0f32; 2];
+    fourth_order_lagrange[0] = 
+             y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(1.0/24.0)
+            +y[-1]*(x+2.0)        *x*(x-1.0)*(x-2.0)*(-1.0/6.0)
+            +y[ 0]*(x+2.0)*(x+1.0)  *(x-1.0)*(x-2.0)*(1.0/4.0)
+            +y[ 1]*(x+2.0)*(x+1.0)*x        *(x-2.0)*(-1.0/6.0)
+            +y[ 2]*(x+2.0)*(x+1.0)*x*(x-1.0)        *(1.0/24.0);
+
+    fourth_order_lagrange[1] = 
+            y[-1]        *x*(x-1.0)*(x-2.0)*(x-3.0)*(1.0/24.0)
+           +y[ 0]*(x+1.0)  *(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/6.0)
+           +y[ 1]*(x+1.0)*x        *(x-2.0)*(x-3.0)*(1.0/4.0)
+           +y[ 2]*(x+1.0)*x*(x-1.0)        *(x-3.0)*(-1.0/6.0)
+           +y[ 3]*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/24.0);
+
+     fourth_order_lagrange[0]*(1.0-x)
+    +fourth_order_lagrange[1]*x
+}
+
 fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32, 
             _filter_size_points: Option<usize>) -> f32{
     // references:
@@ -201,6 +282,22 @@ fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32,
     +fourth_order_lagrange[1]*x
 }
 
+fn get_sample_interpolated_quintic_pure_lagrange_reference(input:&mut [f32], int_i :isize, frac_i :f32, 
+            _filter_size_points: Option<usize>) -> f32{
+    // 6 input samples is the minimum sliding window size needed for quintic splines. 
+    let y = SlidingWindow::new(input, int_i as usize, 6);
+    let x = frac_i;
+    let fifth_order_lagrange: f32 = 
+             y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/120.0)
+            +y[-1]*(x+2.0)        *x*(x-1.0)*(x-2.0)*(x-3.0)*(1.0/24.0)
+            +y[ 0]*(x+2.0)*(x+1.0)  *(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/12.0)
+            +y[ 1]*(x+2.0)*(x+1.0)*x        *(x-2.0)*(x-3.0)*(1.0/12.0)
+            +y[ 2]*(x+2.0)*(x+1.0)*x*(x-1.0)        *(x-3.0)*(-1.0/24.0)
+            +y[ 3]*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/120.0);
+
+    fifth_order_lagrange
+}
+
 fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize, frac_i :f32, 
             _filter_size_points: Option<usize>) -> f32{
     // 6 input samples is the minimum sliding window size needed for quintic splines. 
@@ -215,6 +312,29 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize,
             +y[ 3]*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/120.0);
 
     fifth_order_lagrange
+}
+
+fn get_sample_interpolated_truncated_sinc_reference(input:&mut [f32], int_i :isize, frac_i :f32, 
+            filter_size_points: Option<usize>) -> f32{
+    let size = filter_size_points.unwrap();
+    let y = SlidingWindow::new(input, int_i as usize, size);
+    let t = frac_i;
+    let convolution  = if t==0.0f32 {
+        y[0]
+    }else{
+        let mut sum = 0f32;
+        let t_pi = t*consts::PI;
+        let sin_t_pi = f32::sin(t_pi);
+        let mut sin_t_pi_x_pi = -sin_t_pi;
+        for x_isize in y.x_range() {
+            let x = x_isize as f32;
+            let x_pi = x*consts::PI;
+            sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
+            sum += y[x_isize]*sin_t_pi_x_pi/(t_pi-x_pi);
+        }
+        sum
+    };
+    convolution
 }
 
 fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i :f32, 
@@ -234,6 +354,31 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
             let x_pi = x*consts::PI;
             sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
             sum += y[x_isize]*sin_t_pi_x_pi/(t_pi-x_pi);
+        }
+        sum
+    };
+    convolution
+}
+
+fn get_sample_interpolated_hann_windowed_sinc_reference(input:&mut [f32], int_i :isize, frac_i :f32, 
+            filter_size_points: Option<usize>) -> f32{
+    let size = filter_size_points.unwrap();
+    let hann_window_freq = ((size as f32)*0.5f32).recip();
+    let y = SlidingWindow::new(input, int_i as usize, size);
+    let t = frac_i;
+    let convolution  = if t==0.0f32 {
+        y[0]
+    }else{
+        let mut sum = 0f32;
+        let t_pi = t*consts::PI;
+        let sin_t_pi = f32::sin(t_pi);
+        let mut sin_t_pi_x_pi = -sin_t_pi;
+        for x_isize in y.x_range() {
+            let x = x_isize as f32;
+            let x_pi = x*consts::PI;
+            let window = 0.5f32 + 0.5f32*f32::cos((t_pi-x_pi)*hann_window_freq);
+            sin_t_pi_x_pi = -sin_t_pi_x_pi; // offsets of PI in sin result in sign flips
+            sum += y[x_isize]*window*sin_t_pi_x_pi/(t_pi-x_pi);
         }
         sum
     };

@@ -96,15 +96,15 @@ fn main() {
             get_sample_interpolated_quintic_pure_lagrange);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "truncated sinc", None, 
+            oversample_factor, "truncated sinc", Some(6), 
             get_sample_interpolated_truncated_sinc);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "hann windowed sinc", None, 
+            oversample_factor, "hann windowed sinc", Some(6), 
             get_sample_interpolated_hann_windowed_sinc);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "truncated sinc(sin approx.)", None, 
+            oversample_factor, "truncated sinc(sin approx.)", Some(6), 
             get_sample_interpolated_truncated_sinc_sin_approx);
 
 }
@@ -218,9 +218,9 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize,
 }
 
 fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i :f32, 
-            _filter_size_points: Option<usize>) -> f32{
-    const WIDTH_IN_POINTS: usize = 6;
-    let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
+            filter_size_points: Option<usize>) -> f32{
+    let size = filter_size_points.unwrap();
+    let y = SlidingWindow::new(input, int_i as usize, size);
     let t = frac_i;
     let convolution  = if t==0.0f32 {
         y[0]
@@ -241,10 +241,10 @@ fn get_sample_interpolated_truncated_sinc(input:&mut [f32], int_i :isize, frac_i
 }
 
 fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, frac_i :f32, 
-            _filter_size_points: Option<usize>) -> f32{
-    const WIDTH_IN_POINTS: usize = 6;
-    let hann_window_freq = ((WIDTH_IN_POINTS as f32)*0.5f32).recip();
-    let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
+            filter_size_points: Option<usize>) -> f32{
+    let size = filter_size_points.unwrap();
+    let hann_window_freq = ((size as f32)*0.5f32).recip();
+    let y = SlidingWindow::new(input, int_i as usize, size);
     let t = frac_i;
     let convolution  = if t==0.0f32 {
         y[0]
@@ -267,8 +267,8 @@ fn get_sample_interpolated_hann_windowed_sinc(input:&mut [f32], int_i :isize, fr
 
 fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :isize, frac_i :f32, 
             _filter_size_points: Option<usize>) -> f32{
-    const WIDTH_IN_POINTS: usize = 6;
-    let y = SlidingWindow::new(input, int_i as usize, WIDTH_IN_POINTS);
+    let size = _filter_size_points.unwrap();
+    let y = SlidingWindow::new(input, int_i as usize, size);
     let t = frac_i;
     let convolution  = if t==0.0f32 {
         y[0]
@@ -338,17 +338,17 @@ mod tests {
             "impulse-responses/cubic_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-                None, get_sample_interpolated_truncated_sinc);
+                Some(6), get_sample_interpolated_truncated_sinc);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/truncated_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-            None, get_sample_interpolated_hann_windowed_sinc);
+            Some(6), get_sample_interpolated_hann_windowed_sinc);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/hann_windowed_sinc_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
-            None, get_sample_interpolated_truncated_sinc_sin_approx);
+            Some(6), get_sample_interpolated_truncated_sinc_sin_approx);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/truncated_sinc_sin_approx_IR.wav");
     }

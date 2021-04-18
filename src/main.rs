@@ -434,6 +434,7 @@ fn get_sample_interpolated_truncated_sinc_sin_approx(input:&mut [f32], int_i :is
 mod tests {
     use super::*;
     use hound;
+    const MAX_DEVIATION_FROM_REFERENCE: f32 = 1e-4; // -80dB
 
     #[test]
     fn write_impulse_response_files() {
@@ -476,6 +477,52 @@ mod tests {
             Some(6), get_sample_interpolated_truncated_sinc_sin_approx);
         write_to_wav(&impulse_response, oversample_factor, 
             "impulse-responses/truncated_sinc_sin_approx_IR.wav");
+    }
+
+    #[test]
+    fn compare_optimized_implementation_with_reference() {
+        let mut impulse = vec![0f32; 64];
+        impulse[32] = 1.0f32;
+        let oversample_factor = 32;
+        let mut impulse_response_reference = vec![0f32; impulse.len() * oversample_factor as usize];
+        let mut impulse_response = vec![0f32; impulse.len() * oversample_factor as usize];
+
+        resample(&mut impulse, &mut impulse_response_reference, oversample_factor,
+                None, get_sample_interpolated_quintic_reference);
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                None, get_sample_interpolated_quintic);
+        compare_arrays(&impulse_response_reference, &impulse_response);
+
+        resample(&mut impulse, &mut impulse_response_reference, oversample_factor,
+                None, get_sample_interpolated_quintic_pure_lagrange_reference);
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                None, get_sample_interpolated_quintic_pure_lagrange);
+        compare_arrays(&impulse_response_reference, &impulse_response);
+
+        resample(&mut impulse, &mut impulse_response_reference, oversample_factor,
+                None, get_sample_interpolated_cubic_reference);
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                None, get_sample_interpolated_cubic);
+        compare_arrays(&impulse_response_reference, &impulse_response);
+
+        resample(&mut impulse, &mut impulse_response_reference, oversample_factor,
+                Some(6), get_sample_interpolated_truncated_sinc_reference);
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+                Some(6), get_sample_interpolated_truncated_sinc);
+        compare_arrays(&impulse_response_reference, &impulse_response);
+
+        resample(&mut impulse, &mut impulse_response_reference, oversample_factor,
+            Some(6), get_sample_interpolated_hann_windowed_sinc_reference);
+        resample(&mut impulse, &mut impulse_response, oversample_factor,
+            Some(6), get_sample_interpolated_hann_windowed_sinc);
+        compare_arrays(&impulse_response_reference, &impulse_response);
+
+    }
+
+    fn compare_arrays(target: &[f32], actual: &[f32]) {
+        for (t, a) in target.iter().zip(actual.iter()) {
+            assert!( (t-a).abs()<=MAX_DEVIATION_FROM_REFERENCE );
+        }
     }
 
     fn write_to_wav(v: &[f32], oversample_factor: u32, filename: &str) {

@@ -196,30 +196,17 @@ fn get_sample_interpolated_cubic_reference(input:&mut [f32], int_i :isize, frac_
 
 fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32, 
             _filter_size_points: Option<usize>) -> f32{
-    // references:
-    // https://dsp.stackexchange.com/a/18273
-    // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
-    // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
-
-    // 4 input samples is the minimum sliding window size needed for cubic splines. 
     let y = SlidingWindow::new(input, int_i as usize, 4);
-    // set derivatives at the start/end of the interpolated segment using 
-    // central differences (Catmul-Rom).
-    let mut dy = [0f32; 2];//only two, because edges have no finite differences.
+    let mut dy = [0f32; 2];
+
     dy[0] = (y[1] - y[-1])*0.5;
     dy[1] = (y[2] - y[0])*0.5; 
-    // linear equations that need to be satisfied: 
-    //  ax^3   +bx^2  +cx  +d = y[0]      (at x=0)
-    //  ax^3   +bx^2  +cx  +d = y[1]      (at x=1)
-    // 3ax^2  +2bx    +c      = dy[0]     (at x=0)
-    // 3ax^2  +2bx    +c      = dy[1]     (at x=1)
-    // 
-    // solved for a,b,c,d:
+
     let a: f32 =  2.0*y[0] -2.0*y[1]     +dy[0]    +dy[1];
     let b: f32 = -3.0*y[0] +3.0*y[1] -2.0*dy[0]    -dy[1];
     let c: f32 =                          dy[0]          ;
     let d: f32 =      y[0]                               ;
-    // evaluate cubic at x. (frac_i is already in the same range as x)
+
     let x = frac_i;
     a*x*x*x + b*x*x + c*x + d
 }
@@ -255,14 +242,8 @@ fn get_sample_interpolated_quintic_reference(input:&mut [f32], int_i :isize, fra
 
 fn get_sample_interpolated_quintic(input:&mut [f32], int_i :isize, frac_i :f32, 
             _filter_size_points: Option<usize>) -> f32{
-    // references:
-    // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
-
-    // 6 input samples is the minimum sliding window size needed for quintic splines. 
     let y = SlidingWindow::new(input, int_i as usize, 6);
     let x = frac_i;
-    // polynomial interpolation of degree N can be made by linear interpolating 
-    // between two polynomial interpolations of degree (N-1).
     let mut fourth_order_lagrange = [0f32; 2];
     fourth_order_lagrange[0] = 
              y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(1.0/24.0)
@@ -300,7 +281,6 @@ fn get_sample_interpolated_quintic_pure_lagrange_reference(input:&mut [f32], int
 
 fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize, frac_i :f32, 
             _filter_size_points: Option<usize>) -> f32{
-    // 6 input samples is the minimum sliding window size needed for quintic splines. 
     let y = SlidingWindow::new(input, int_i as usize, 6);
     let x = frac_i;
     let fifth_order_lagrange: f32 = 

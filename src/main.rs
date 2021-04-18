@@ -68,15 +68,15 @@ fn main() {
     println!("\nUsing test length of {} samples...\n", testlength_samples);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "warmup1", None, 
+            oversample_factor, "(warmup)", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "warmup2", None, 
+            oversample_factor, "(warmup)", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "warmup3", None, 
+            oversample_factor, "(warmup)", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
@@ -96,37 +96,37 @@ fn main() {
             get_sample_interpolated_quintic_pure_lagrange);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "truncated sinc", Some(6), 
+            oversample_factor, "truncated sinc, 6p", Some(6), 
             get_sample_interpolated_truncated_sinc);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "hann windowed sinc", Some(6), 
+            oversample_factor, "hann windowed sinc, 6p", Some(6), 
             get_sample_interpolated_hann_windowed_sinc);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "truncated sinc(sin approx.)", Some(6), 
+            oversample_factor, "truncated sinc(sin approx.), 6p", Some(6), 
             get_sample_interpolated_truncated_sinc_sin_approx);
 
-    println!("------------unoptimized-implementations-----------");
+    println!("\n------unoptimized-reference-implementations------");
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "cubic(reference)", None, 
+            oversample_factor, "cubic", None, 
             get_sample_interpolated_cubic_reference);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic(reference)", None, 
+            oversample_factor, "quintic", None, 
             get_sample_interpolated_quintic_reference);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic pure lagrange(reference)", None, 
+            oversample_factor, "quintic pure lagrange", None, 
             get_sample_interpolated_quintic_pure_lagrange_reference);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "truncated sinc(reference)", Some(6), 
+            oversample_factor, "truncated sinc, 6p", Some(6), 
             get_sample_interpolated_truncated_sinc_reference);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "hann windowed sinc(reference)", Some(6), 
+            oversample_factor, "hann windowed sinc, 6p", Some(6), 
             get_sample_interpolated_hann_windowed_sinc_reference);
 
 }

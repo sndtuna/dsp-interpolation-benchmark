@@ -19,15 +19,22 @@ Output on the dev machine (Ryzen 2700X):
 ```
 Using test length of 262144 samples...
 
-warmup1:                      10.0 ns/sample.
-warmup2:                      10.2 ns/sample.
-warmup3:                      10.8 ns/sample.
-linear:                        5.1 ns/sample.
-cubic:                         9.7 ns/sample.
-quintic:                      16.3 ns/sample.
-quintic pure lagrange:        13.8 ns/sample.
-truncated sinc:               18.4 ns/sample.
-hann windowed sinc:           44.7 ns/sample.
-truncated sinc(sin approx.):  14.8 ns/sample.
+(warmup):                           9.8 ns/sample.
+(warmup):                           9.5 ns/sample.
+(warmup):                           9.6 ns/sample.
+linear:                             5.2 ns/sample.
+cubic:                              9.6 ns/sample.
+quintic:                           16.4 ns/sample.
+quintic pure lagrange:             13.8 ns/sample.
+truncated sinc, 6p:                22.8 ns/sample.
+hann windowed sinc, 6p:            54.0 ns/sample.
+truncated sinc(sin approx.), 6p:   17.0 ns/sample.
+
+------unoptimized-reference-implementations------
+cubic:                              9.6 ns/sample.
+quintic:                           16.4 ns/sample.
+quintic pure lagrange:             13.9 ns/sample.
+truncated sinc, 6p:                43.4 ns/sample.
+hann windowed sinc, 6p:            71.3 ns/sample.
 ```
 

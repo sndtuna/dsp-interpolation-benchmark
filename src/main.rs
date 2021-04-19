@@ -201,14 +201,16 @@ fn get_sample_interpolated_cubic(input:&mut [f32], int_i :isize, frac_i :f32,
 
     dy[0] = (y[1] - y[-1])*0.5;
     dy[1] = (y[2] - y[0])*0.5; 
+    let y_0m1 = y[0] - y[1];
+    let dy_0p1 = dy[0] + dy[1];
 
-    let a: f32 =  2.0*y[0] -2.0*y[1]     +dy[0]    +dy[1];
-    let b: f32 = -3.0*y[0] +3.0*y[1] -2.0*dy[0]    -dy[1];
-    let c: f32 =                          dy[0]          ;
-    let d: f32 =      y[0]                               ;
+    let a: f32 =  2.0*y_0m1          +dy_0p1;
+    let b: f32 = -3.0*y_0m1  -dy[0]  -dy_0p1;
+    let c: f32 =              dy[0]         ;
+    let d: f32 =      y[0]                  ;
 
     let x = frac_i;
-    a*x*x*x + b*x*x + c*x + d
+    ((((a*x)+b)*x)+c)*x+d
 }
 
 fn get_sample_interpolated_quintic_reference(input:&mut [f32], int_i :isize, frac_i :f32, 

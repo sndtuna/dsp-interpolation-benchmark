@@ -161,7 +161,8 @@ fn get_sample_interpolated_linear(input:&mut [f32], int_i :isize, frac_i :f32,
             _filter_size_points: Option<usize>) -> f32{
     let y = SlidingWindow::new(input, int_i as usize, 2);
     let x = frac_i;
-    y[0]*(1.0-x) + y[1]*x
+    let slope = y[1] - y[0];
+    y[0] + slope*x
 }
 
 fn get_sample_interpolated_cubic_reference(input:&mut [f32], int_i :isize, frac_i :f32, 

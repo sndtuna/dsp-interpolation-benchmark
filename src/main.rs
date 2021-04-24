@@ -286,13 +286,14 @@ fn get_sample_interpolated_quintic_pure_lagrange(input:&mut [f32], int_i :isize,
             _filter_size_points: Option<usize>) -> f32{
     let y = SlidingWindow::new(input, int_i as usize, 6);
     let x = frac_i;
+    // calculations are reordered to allow the compiler to reuse results.
     let fifth_order_lagrange: f32 = 
-             y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/120.0)
-            +y[-1]*(x+2.0)        *x*(x-1.0)*(x-2.0)*(x-3.0)*(1.0/24.0)
-            +y[ 0]*(x+2.0)*(x+1.0)  *(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/12.0)
-            +y[ 1]*(x+2.0)*(x+1.0)*x        *(x-2.0)*(x-3.0)*(1.0/12.0)
-            +y[ 2]*(x+2.0)*(x+1.0)*x*(x-1.0)        *(x-3.0)*(-1.0/24.0)
-            +y[ 3]*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/120.0);
+                        ((x+1.0)*(x*((x-1.0)*((x-2.0)*(x-3.0)))))*(-1.0/120.0)*y[-2] 
+            +    (x+2.0)        *(x*((x-1.0)*((x-2.0)*(x-3.0))))   *(1.0/24.0)*y[-1]
+            +   ((x+2.0)*(x+1.0))  *((x-1.0)*((x-2.0)*(x-3.0)))   *(-1.0/12.0)*y[ 0]
+            +  (((x+2.0)*(x+1.0))*x)        *((x-2.0)*(x-3.0))     *(1.0/12.0)*y[ 1]
+            + ((((x+2.0)*(x+1.0))*x)*(x-1.0))        *(x-3.0)     *(-1.0/24.0)*y[ 2]
+            +(((((x+2.0)*(x+1.0))*x)*(x-1.0))*(x-2.0))            *(1.0/120.0)*y[ 3];
 
     fifth_order_lagrange
 }

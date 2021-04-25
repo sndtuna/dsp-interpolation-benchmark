@@ -80,19 +80,19 @@ fn main() {
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "linear", None, 
+            oversample_factor, "1st degree(linear), C0-continuous, 2p", None, 
             get_sample_interpolated_linear);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "cubic", None, 
+            oversample_factor, "3rd degree(cubic), C1-continuous, 4p", None, 
             get_sample_interpolated_cubic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic", None, 
+            oversample_factor, "5th degree, C1-continuous, 6p", None, 
             get_sample_interpolated_quintic);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic pure lagrange", None, 
+            oversample_factor, "5th degree, C0-continuous, 6p", None, 
             get_sample_interpolated_quintic_pure_lagrange);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
@@ -110,15 +110,15 @@ fn main() {
     println!("\n------unoptimized-reference-implementations------");
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "cubic", None, 
+            oversample_factor, "3rd degree(cubic), C1-continuous, 4p", None, 
             get_sample_interpolated_cubic_reference);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic", None, 
+            oversample_factor, "5th degree, C1-continuous, 6p", None, 
             get_sample_interpolated_quintic_reference);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
-            oversample_factor, "quintic pure lagrange", None, 
+            oversample_factor, "5th degree, C0-continuous, 6p", None, 
             get_sample_interpolated_quintic_pure_lagrange_reference);
 
     run_interpolation_and_print_performance(&mut noise,&mut interpolated_noise, 
@@ -137,7 +137,7 @@ fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32],
     let now = Instant::now(); 
     let generated_samples = dest.len() as f64;
     resample(src, dest, oversample_factor, filter_size_points, interp_func);
-    println!("{:<33}{:>6.1} ns/sample.", fn_print_name.to_owned()+":", 
+    println!("{:<39}{:>6.1} ns/sample.", fn_print_name.to_owned()+":", 
             now.elapsed().as_secs_f64()*1e9/generated_samples);
 }
 
@@ -440,22 +440,22 @@ mod tests {
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 None, get_sample_interpolated_linear);
         write_to_wav(&impulse_response, oversample_factor, 
-            "impulse-responses/linear_IR.wav");
+            "impulse-responses/1st(linear)_C0_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 None, get_sample_interpolated_quintic);
         write_to_wav(&impulse_response, oversample_factor, 
-            "impulse-responses/quintic_IR.wav");
+            "impulse-responses/5th_C1_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 None, get_sample_interpolated_quintic_pure_lagrange);
         write_to_wav(&impulse_response, oversample_factor, 
-            "impulse-responses/quintic_pure_lagrange_IR.wav");
+            "impulse-responses/5th_C0_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 None, get_sample_interpolated_cubic);
         write_to_wav(&impulse_response, oversample_factor, 
-            "impulse-responses/cubic_IR.wav");
+            "impulse-responses/3rd(cubic)_C1_IR.wav");
 
         resample(&mut impulse, &mut impulse_response, oversample_factor,
                 Some(6), get_sample_interpolated_truncated_sinc);

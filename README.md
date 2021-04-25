@@ -19,22 +19,22 @@ Output on the dev machine (Ryzen 2700X):
 ```
 Using test length of 262144 samples...
 
-(warmup):                           9.8 ns/sample.
-(warmup):                           9.5 ns/sample.
-(warmup):                           9.6 ns/sample.
-linear:                             5.2 ns/sample.
-cubic:                              9.6 ns/sample.
-quintic:                           16.4 ns/sample.
-quintic pure lagrange:             13.8 ns/sample.
-truncated sinc, 6p:                22.8 ns/sample.
-hann windowed sinc, 6p:            54.0 ns/sample.
-truncated sinc(sin approx.), 6p:   17.0 ns/sample.
+(warmup):                                 6.4 ns/sample.
+(warmup):                                 6.4 ns/sample.
+(warmup):                                 6.4 ns/sample.
+1st degree(linear), C0-continuous, 2p:    4.7 ns/sample.
+3rd degree(cubic), C1-continuous, 4p:     6.4 ns/sample.
+5th degree, C1-continuous, 6p:           16.6 ns/sample.
+5th degree, C0-continuous, 6p:           12.2 ns/sample.
+truncated sinc, 6p:                      22.7 ns/sample.
+hann windowed sinc, 6p:                  52.4 ns/sample.
+truncated sinc(sin approx.), 6p:         17.1 ns/sample.
 
 ------unoptimized-reference-implementations------
-cubic:                              9.6 ns/sample.
-quintic:                           16.4 ns/sample.
-quintic pure lagrange:             13.9 ns/sample.
-truncated sinc, 6p:                43.4 ns/sample.
-hann windowed sinc, 6p:            71.3 ns/sample.
+3rd degree(cubic), C1-continuous, 4p:     9.6 ns/sample.
+5th degree, C1-continuous, 6p:           16.5 ns/sample.
+5th degree, C0-continuous, 6p:           13.8 ns/sample.
+truncated sinc, 6p:                      43.2 ns/sample.
+hann windowed sinc, 6p:                  71.4 ns/sample.
 ```
 

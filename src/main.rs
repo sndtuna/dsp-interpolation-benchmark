@@ -56,12 +56,19 @@ trait Interpolator {
 
 fn main() {
     let warmup_interpolator = Box::new(CPUspeedMeasurement);
-    let interpolators: Vec<Box<dyn Interpolator>> = vec![
+    let all_interpolators: Vec<Box<dyn Interpolator>> = vec![
             Box::new(Spline1stDegreeC0),
             Box::new(Spline3rdDegreeC1),
             Box::new(Spline5thDegreeC0),
             Box::new(Spline5thDegreeC1),
             Box::new(SincTruncatedApprox),
+            Box::new(SincTruncated),
+            Box::new(SincHann),
+    ];
+    let interpolators_with_slower_reference: Vec<Box<dyn Interpolator>> = vec![
+            Box::new(Spline1stDegreeC0),
+            Box::new(Spline3rdDegreeC1),
+            Box::new(Spline5thDegreeC0),
             Box::new(SincTruncated),
             Box::new(SincHann),
     ];
@@ -95,13 +102,13 @@ fn main() {
             &mut interpolated_noise, oversample_factor, 
             Some(6), &*warmup_interpolator, false);
     }
-    for interp in &interpolators {
+    for interp in &all_interpolators {
         run_interpolation_and_print_performance(&mut noise, 
             &mut interpolated_noise, oversample_factor, 
             Some(6), &**interp, false);
     }
     println!("\n------unoptimized-reference-implementations------");
-    for interp in &interpolators {
+    for interp in &interpolators_with_slower_reference {
         run_interpolation_and_print_performance(&mut noise, 
             &mut interpolated_noise, oversample_factor, 
             Some(6), &**interp, true);

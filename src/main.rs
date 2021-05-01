@@ -59,11 +59,11 @@ fn main() {
     let interpolators: Vec<Box<dyn Interpolator>> = vec![
             Box::new(Spline1stDegreeC0),
             Box::new(Spline3rdDegreeC1),
-            Box::new(Spline5thDegreeC1),
             Box::new(Spline5thDegreeC0),
+            Box::new(Spline5thDegreeC1),
+            Box::new(SincTruncatedApprox),
             Box::new(SincTruncated),
             Box::new(SincHann),
-            Box::new(SincTruncatedApprox),
     ];
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(0u64);

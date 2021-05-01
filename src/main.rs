@@ -46,11 +46,12 @@ impl IndexMut<isize> for SlidingWindow<'_> {
 trait Interpolator {
     fn display_name(&self) -> &'static str;
     fn impulse_response_file_name(&self) -> &'static str;
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            filter_size_points: Option<usize>) -> f32;
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            filter_size_points: Option<usize>) -> f32 {
-        self.get_sample_interpolated_ref_impl(input, int_i, frac_i, filter_size_points)
+    fn get_width_of_local_context_in_samples(&self) -> usize;
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32;
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        self.get_sample_interpolated_ref_impl(input, int_i, frac_i)
     }
 }
 
@@ -72,6 +73,10 @@ fn main() {
             Box::new(SincTruncated),
             Box::new(SincHann),
     ];
+    let largest_window_size = 
+            all_interpolators.iter()
+            .map(|x| x.get_width_of_local_context_in_samples())
+            .max().unwrap();
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(0u64);
     let mut testlength_samples: usize = 4096;
@@ -87,7 +92,7 @@ fn main() {
         interpolated_noise = vec![0f32; noise.len() * oversample_factor as usize];
         let now = Instant::now();
         resample(&mut noise, &mut interpolated_noise, oversample_factor, 
-                None, &*warmup_interpolator, false);
+            6, &*warmup_interpolator, false);
         let time_per_task = now.elapsed().as_secs_f64();
         if time_per_task > 0.025f64 {
             break
@@ -99,36 +104,35 @@ fn main() {
     println!("\nUsing test length of {} samples...\n", testlength_samples);
     for _i in 0..3 {
         run_interpolation_and_print_performance(&mut noise, 
-            &mut interpolated_noise, oversample_factor, 
-            Some(6), &*warmup_interpolator, false);
+            &mut interpolated_noise, oversample_factor, largest_window_size, 
+            &*warmup_interpolator, false);
     }
     for interp in &all_interpolators {
         run_interpolation_and_print_performance(&mut noise, 
-            &mut interpolated_noise, oversample_factor, 
-            Some(6), &**interp, false);
+            &mut interpolated_noise, oversample_factor, largest_window_size,
+            &**interp, false);
     }
     println!("\n------unoptimized-reference-implementations------");
     for interp in &interpolators_with_slower_reference {
         run_interpolation_and_print_performance(&mut noise, 
-            &mut interpolated_noise, oversample_factor, 
-            Some(6), &**interp, true);
+            &mut interpolated_noise, oversample_factor, largest_window_size, 
+            &**interp, true);
     }
 }
 
 fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32], 
-        oversample_factor: u32, filter_size_points: Option<usize>, 
+        oversample_factor: u32, largest_window_size: usize, 
         interp: &dyn Interpolator, use_ref_impl: bool) {
     let now = Instant::now(); 
     let generated_samples = dest.len() as f64;
-    resample(src, dest, oversample_factor, filter_size_points, interp, use_ref_impl);
+    resample(src, dest, oversample_factor, largest_window_size, interp, use_ref_impl);
     println!("{:<39}{:>6.1} ns/sample.", interp.display_name().to_owned()+":", 
             now.elapsed().as_secs_f64()*1e9/generated_samples);
 }
 
 fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32, 
-            filter_size_points: Option<usize>, 
-            interp: &dyn Interpolator, use_ref_impl: bool) {
-    let largest_window_size = 6;
+        largest_window_size: usize, 
+        interp: &dyn Interpolator, use_ref_impl: bool) {
     let skip_lower_end = (largest_window_size/2-1) * oversample_factor as usize;
     let skip_higher_end = (largest_window_size/2) * oversample_factor as usize;
     let oversample_factor_recip = (oversample_factor as f64).recip();
@@ -139,10 +143,10 @@ fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32,
         dest[response_i] = 
                 if use_ref_impl {
                     interp.get_sample_interpolated_ref_impl(src, 
-                            int_i as isize, frac_i as f32, filter_size_points)
+                            int_i as isize, frac_i as f32)
                 }else{
                     interp.get_sample_interpolated(src, 
-                            int_i as isize, frac_i as f32, filter_size_points)
+                            int_i as isize, frac_i as f32)
                 }
     }
 }
@@ -155,15 +159,20 @@ impl Interpolator for Spline1stDegreeC0 {
     fn impulse_response_file_name(&self) -> &'static str {
         "1st(linear)_C0_IR"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
-        let y = SlidingWindow::new(input, int_i as usize, 2);
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        2
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         let x = frac_i;
         y[0]*(1.0f32-x) + y[1]*x
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
-        let y = SlidingWindow::new(input, int_i as usize, 2);
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         let x = frac_i;
         let slope = y[1] - y[0];
         y[0] + slope*x
@@ -178,15 +187,19 @@ impl Interpolator for Spline3rdDegreeC1 {
     fn impulse_response_file_name(&self) -> &'static str {
         "3rd(cubic)_C1_IR"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        4
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
         // references:
         // https://dsp.stackexchange.com/a/18273
         // https://hbfs.wordpress.com/2012/07/03/fast-interpolation-interpolation-part-v/
         // https://en.wikipedia.org/wiki/Cubic_Hermite_spline
 
         // 4 input samples is the minimum sliding window size needed for cubic splines. 
-        let y = SlidingWindow::new(input, int_i as usize, 4);
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         // set derivatives at the start/end of the interpolated segment using 
         // central differences (Catmul-Rom).
         let mut dy = [0f32; 2];//only two, because edges have no finite differences.
@@ -207,9 +220,10 @@ impl Interpolator for Spline3rdDegreeC1 {
         let x = frac_i;
         a*x*x*x + b*x*x + c*x + d
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
-        let y = SlidingWindow::new(input, int_i as usize, 4);
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         let mut dy = [0f32; 2];
 
         dy[0] = (y[1] - y[-1])*0.5;
@@ -235,9 +249,13 @@ impl Interpolator for CPUspeedMeasurement {
     fn impulse_response_file_name(&self) -> &'static str {
         "(warmup)"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
-        let y = SlidingWindow::new(input, int_i as usize, 4);
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        4
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         let mut dy = [0f32; 2];
 
         dy[0] = (y[1] - y[-1])*0.5;
@@ -263,13 +281,17 @@ impl Interpolator for Spline5thDegreeC1 {
     fn impulse_response_file_name(&self) -> &'static str {
         "5th_C1_IR"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        6
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
         // references:
         // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
 
         // 6 input samples is the minimum sliding window size needed for quintic splines. 
-        let y = SlidingWindow::new(input, int_i as usize, 6);
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         let x = frac_i;
         // polynomial interpolation of degree N can be made by linear interpolating 
         // between two polynomial interpolations of degree (N-1).
@@ -301,10 +323,14 @@ impl Interpolator for Spline5thDegreeC0 {
     fn impulse_response_file_name(&self) -> &'static str {
         "5th_C0_IR"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        6
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
         // 6 input samples is the minimum sliding window size needed for quintic splines. 
-        let y = SlidingWindow::new(input, int_i as usize, 6);
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         let x = frac_i;
         let fifth_order_lagrange: f32 = 
                 y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/120.0)
@@ -316,9 +342,10 @@ impl Interpolator for Spline5thDegreeC0 {
 
         fifth_order_lagrange
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
-        let y = SlidingWindow::new(input, int_i as usize, 6);
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
         let x = frac_i;
         // calculations are reordered to allow the compiler to reuse results.
         let fifth_order_lagrange: f32 = 
@@ -341,9 +368,12 @@ impl Interpolator for SincTruncated {
     fn impulse_response_file_name(&self) -> &'static str {
         "truncated_sinc_IR"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            filter_size_points: Option<usize>) -> f32 {
-        let size = filter_size_points.unwrap();
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        6
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
         let y = SlidingWindow::new(input, int_i as usize, size);
         let t = frac_i;
         let convolution  = if t==0.0f32 {
@@ -358,9 +388,9 @@ impl Interpolator for SincTruncated {
         };
         convolution
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            filter_size_points: Option<usize>) -> f32 {
-        let size = filter_size_points.unwrap();
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
         let y = SlidingWindow::new(input, int_i as usize, size);
         let t = frac_i;
         let convolution  = if t==0.0f32 {
@@ -390,9 +420,12 @@ impl Interpolator for SincHann {
     fn impulse_response_file_name(&self) -> &'static str {
         "hann_windowed_sinc_IR"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            filter_size_points: Option<usize>) -> f32 {
-        let size = filter_size_points.unwrap();
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        6
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
         let hann_window_freq = ((size as f32)*0.5f32).recip();
         let y = SlidingWindow::new(input, int_i as usize, size);
         let t = frac_i;
@@ -409,9 +442,9 @@ impl Interpolator for SincHann {
         };
         convolution
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            filter_size_points: Option<usize>) -> f32 {
-        let size = filter_size_points.unwrap();
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
         let hann_window_freq = ((size as f32)*0.5f32).recip();
         let y = SlidingWindow::new(input, int_i as usize, size);
         let t = frac_i;
@@ -443,9 +476,12 @@ impl Interpolator for SincTruncatedApprox {
     fn impulse_response_file_name(&self) -> &'static str {
         "truncated_sinc_sin_approx_IR"
     }
-    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            filter_size_points: Option<usize>) -> f32 {
-        let size = filter_size_points.unwrap();
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        6
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
         let y = SlidingWindow::new(input, int_i as usize, size);
         let t = frac_i;
         let convolution  = if t==0.0f32 {
@@ -506,10 +542,14 @@ mod tests {
                 Box::new(SincHann),
                 Box::new(SincTruncatedApprox),
         ];
+        let largest_window_size = 
+                optimized_implementations.iter()
+                .map(|x| x.get_width_of_local_context_in_samples())
+                .max().unwrap();
 
         for opt_im in optimized_implementations {
             resample(&mut impulse, &mut impulse_response, 
-                    oversample_factor, Some(6), &*opt_im, false);
+                    oversample_factor, largest_window_size, &*opt_im, false);
             write_to_wav(&impulse_response, oversample_factor, &(
                     "impulse-responses/".to_owned()
                     +opt_im.impulse_response_file_name()
@@ -532,13 +572,17 @@ mod tests {
                 Box::new(SincTruncated),
                 Box::new(SincHann),
         ];
+        let largest_window_size = 
+                interpolators.iter()
+                .map(|x| x.get_width_of_local_context_in_samples())
+                .max().unwrap();
 
         for interpolator in interpolators {
             resample(&mut impulse, &mut impulse_response_reference, 
-                    oversample_factor, Some(6), 
+                    oversample_factor, largest_window_size, 
                     &*interpolator, true);
             resample(&mut impulse, &mut impulse_response, 
-                    oversample_factor, Some(6), 
+                    oversample_factor, largest_window_size, 
                     &*interpolator, false);
             compare_arrays(&impulse_response_reference, &impulse_response);
         }

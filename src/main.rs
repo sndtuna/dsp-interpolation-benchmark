@@ -46,13 +46,17 @@ impl IndexMut<isize> for SlidingWindow<'_> {
 trait Interpolator {
     fn display_name(&self) -> &'static str;
     fn impulse_response_file_name(&self) -> &'static str;
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             filter_size_points: Option<usize>) -> f32;
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+            filter_size_points: Option<usize>) -> f32 {
+        self.get_sample_interpolated_ref_impl(input, int_i, frac_i, filter_size_points)
+    }
 }
 
 fn main() {
     let warmup_interpolator = Box::new(CPUspeedMeasurement);
-    let optimized_implementations: Vec<Box<dyn Interpolator>> = vec![
+    let interpolators: Vec<Box<dyn Interpolator>> = vec![
             Box::new(Spline1stDegreeC0),
             Box::new(Spline3rdDegreeC1),
             Box::new(Spline5thDegreeC1),
@@ -60,13 +64,6 @@ fn main() {
             Box::new(SincTruncated),
             Box::new(SincHann),
             Box::new(SincTruncatedApprox),
-    ];
-    let reference_implementations: Vec<Box<dyn Interpolator>> = vec![
-            Box::new(RefImpSpline3rdDegreeC1),
-            Box::new(RefImpSpline5thDegreeC1),
-            Box::new(RefImpSpline5thDegreeC0),
-            Box::new(RefImpSincTruncated),
-            Box::new(RefImpSincHann),
     ];
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(0u64);
@@ -83,7 +80,7 @@ fn main() {
         interpolated_noise = vec![0f32; noise.len() * oversample_factor as usize];
         let now = Instant::now();
         resample(&mut noise, &mut interpolated_noise, oversample_factor, 
-                None, &*warmup_interpolator);
+                None, &*warmup_interpolator, false);
         let time_per_task = now.elapsed().as_secs_f64();
         if time_per_task > 0.025f64 {
             break
@@ -96,34 +93,34 @@ fn main() {
     for _i in 0..3 {
         run_interpolation_and_print_performance(&mut noise, 
             &mut interpolated_noise, oversample_factor, 
-            Some(6), &*warmup_interpolator);
+            Some(6), &*warmup_interpolator, false);
     }
-    for interp in optimized_implementations {
+    for interp in &interpolators {
         run_interpolation_and_print_performance(&mut noise, 
             &mut interpolated_noise, oversample_factor, 
-            Some(6), &*interp);
+            Some(6), &**interp, false);
     }
     println!("\n------unoptimized-reference-implementations------");
-    for interp in reference_implementations {
+    for interp in &interpolators {
         run_interpolation_and_print_performance(&mut noise, 
             &mut interpolated_noise, oversample_factor, 
-            Some(6), &*interp);
+            Some(6), &**interp, true);
     }
 }
 
 fn run_interpolation_and_print_performance(src: &mut [f32], dest: &mut [f32], 
         oversample_factor: u32, filter_size_points: Option<usize>, 
-        interp: &dyn Interpolator) {
+        interp: &dyn Interpolator, use_ref_impl: bool) {
     let now = Instant::now(); 
     let generated_samples = dest.len() as f64;
-    resample(src, dest, oversample_factor, filter_size_points, interp);
+    resample(src, dest, oversample_factor, filter_size_points, interp, use_ref_impl);
     println!("{:<39}{:>6.1} ns/sample.", interp.display_name().to_owned()+":", 
             now.elapsed().as_secs_f64()*1e9/generated_samples);
 }
 
 fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32, 
             filter_size_points: Option<usize>, 
-            interp: &dyn Interpolator) {
+            interp: &dyn Interpolator, use_ref_impl: bool) {
     let largest_window_size = 6;
     let skip_lower_end = (largest_window_size/2-1) * oversample_factor as usize;
     let skip_higher_end = (largest_window_size/2) * oversample_factor as usize;
@@ -133,7 +130,13 @@ fn resample(src: &mut [f32], dest: &mut[f32], oversample_factor: u32,
         let int_i = fp_i as usize;
         let frac_i = fp_i - (int_i as f64);
         dest[response_i] = 
-                interp.get_sample_interpolated(src, int_i as isize, frac_i as f32, filter_size_points);
+                if use_ref_impl {
+                    interp.get_sample_interpolated_ref_impl(src, 
+                            int_i as isize, frac_i as f32, filter_size_points)
+                }else{
+                    interp.get_sample_interpolated(src, 
+                            int_i as isize, frac_i as f32, filter_size_points)
+                }
     }
 }
 
@@ -145,7 +148,7 @@ impl Interpolator for Spline1stDegreeC0 {
     fn impulse_response_file_name(&self) -> &'static str {
         "1st(linear)_C0_IR"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
         let y = SlidingWindow::new(input, int_i as usize, 2);
         let x = frac_i;
@@ -154,15 +157,15 @@ impl Interpolator for Spline1stDegreeC0 {
     }
 }
 
-struct RefImpSpline3rdDegreeC1;
-impl Interpolator for RefImpSpline3rdDegreeC1 {
+struct Spline3rdDegreeC1;
+impl Interpolator for Spline3rdDegreeC1 {
     fn display_name(&self) -> &'static str {
         "3rd degree(cubic), C1-continuous, 4p"
     } 
     fn impulse_response_file_name(&self) -> &'static str {
         "3rd(cubic)_C1_IR"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
         // references:
         // https://dsp.stackexchange.com/a/18273
@@ -190,16 +193,6 @@ impl Interpolator for RefImpSpline3rdDegreeC1 {
         // evaluate cubic at x. (frac_i is already in the same range as x)
         let x = frac_i;
         a*x*x*x + b*x*x + c*x + d
-    }
-}
-
-struct Spline3rdDegreeC1;
-impl Interpolator for Spline3rdDegreeC1 {
-    fn display_name(&self) -> &'static str {
-        "3rd degree(cubic), C1-continuous, 4p"
-    } 
-    fn impulse_response_file_name(&self) -> &'static str {
-        "3rd(cubic)_C1_IR"
     }
     fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
@@ -229,7 +222,7 @@ impl Interpolator for CPUspeedMeasurement {
     fn impulse_response_file_name(&self) -> &'static str {
         "(warmup)"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
         let y = SlidingWindow::new(input, int_i as usize, 4);
         let mut dy = [0f32; 2];
@@ -249,15 +242,15 @@ impl Interpolator for CPUspeedMeasurement {
     }
 }
 
-struct RefImpSpline5thDegreeC1;
-impl Interpolator for RefImpSpline5thDegreeC1 {
+struct Spline5thDegreeC1;
+impl Interpolator for Spline5thDegreeC1 {
     fn display_name(&self) -> &'static str {
         "5th degree, C1-continuous, 6p"
     } 
     fn impulse_response_file_name(&self) -> &'static str {
         "5th_C1_IR"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
         // references:
         // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
@@ -285,16 +278,6 @@ impl Interpolator for RefImpSpline5thDegreeC1 {
         fourth_order_lagrange[0]*(1.0-x)
         +fourth_order_lagrange[1]*x
     }
-}
-
-struct Spline5thDegreeC1;
-impl Interpolator for Spline5thDegreeC1 {
-    fn display_name(&self) -> &'static str {
-        "5th degree, C1-continuous, 6p"
-    } 
-    fn impulse_response_file_name(&self) -> &'static str {
-        "5th_C1_IR"
-    }
     fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
         let y = SlidingWindow::new(input, int_i as usize, 6);
@@ -319,15 +302,15 @@ impl Interpolator for Spline5thDegreeC1 {
     }
 }
 
-struct RefImpSpline5thDegreeC0;
-impl Interpolator for RefImpSpline5thDegreeC0 {
+struct Spline5thDegreeC0;
+impl Interpolator for Spline5thDegreeC0 {
     fn display_name(&self) -> &'static str {
         "5th degree, C0-continuous, 6p"
     } 
     fn impulse_response_file_name(&self) -> &'static str {
         "5th_C0_IR"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
         // 6 input samples is the minimum sliding window size needed for quintic splines. 
         let y = SlidingWindow::new(input, int_i as usize, 6);
@@ -341,16 +324,6 @@ impl Interpolator for RefImpSpline5thDegreeC0 {
                 +y[ 3]*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/120.0);
 
         fifth_order_lagrange
-    }
-}
-
-struct Spline5thDegreeC0;
-impl Interpolator for Spline5thDegreeC0 {
-    fn display_name(&self) -> &'static str {
-        "5th degree, C0-continuous, 6p"
-    } 
-    fn impulse_response_file_name(&self) -> &'static str {
-        "5th_C0_IR"
     }
     fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             _filter_size_points: Option<usize>) -> f32 {
@@ -369,15 +342,15 @@ impl Interpolator for Spline5thDegreeC0 {
     }
 }
 
-struct RefImpSincTruncated;
-impl Interpolator for RefImpSincTruncated {
+struct SincTruncated;
+impl Interpolator for SincTruncated {
     fn display_name(&self) -> &'static str {
         "truncated sinc, 6p"
     } 
     fn impulse_response_file_name(&self) -> &'static str {
         "truncated_sinc_IR"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             filter_size_points: Option<usize>) -> f32 {
         let size = filter_size_points.unwrap();
         let y = SlidingWindow::new(input, int_i as usize, size);
@@ -393,16 +366,6 @@ impl Interpolator for RefImpSincTruncated {
             sum
         };
         convolution
-    }
-}
-
-struct SincTruncated;
-impl Interpolator for SincTruncated {
-    fn display_name(&self) -> &'static str {
-        "truncated sinc, 6p"
-    } 
-    fn impulse_response_file_name(&self) -> &'static str {
-        "truncated_sinc_IR"
     }
     fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             filter_size_points: Option<usize>) -> f32 {
@@ -428,15 +391,15 @@ impl Interpolator for SincTruncated {
     }
 }
 
-struct RefImpSincHann;
-impl Interpolator for RefImpSincHann {
+struct SincHann;
+impl Interpolator for SincHann {
     fn display_name(&self) -> &'static str {
         "hann windowed sinc, 6p"
     } 
     fn impulse_response_file_name(&self) -> &'static str {
         "hann_windowed_sinc_IR"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             filter_size_points: Option<usize>) -> f32 {
         let size = filter_size_points.unwrap();
         let hann_window_freq = ((size as f32)*0.5f32).recip();
@@ -454,16 +417,6 @@ impl Interpolator for RefImpSincHann {
             sum
         };
         convolution
-    }
-}
-
-struct SincHann;
-impl Interpolator for SincHann {
-    fn display_name(&self) -> &'static str {
-        "hann windowed sinc, 6p"
-    } 
-    fn impulse_response_file_name(&self) -> &'static str {
-        "hann_windowed_sinc_IR"
     }
     fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             filter_size_points: Option<usize>) -> f32 {
@@ -499,7 +452,7 @@ impl Interpolator for SincTruncatedApprox {
     fn impulse_response_file_name(&self) -> &'static str {
         "truncated_sinc_sin_approx_IR"
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
             filter_size_points: Option<usize>) -> f32 {
         let size = filter_size_points.unwrap();
         let y = SlidingWindow::new(input, int_i as usize, size);
@@ -537,7 +490,7 @@ impl Interpolator for SincTruncatedApprox {
             sum*consts::FRAC_1_PI
         };
         convolution
-        }
+    }
 }
 
 #[cfg(test)]
@@ -565,7 +518,7 @@ mod tests {
 
         for opt_im in optimized_implementations {
             resample(&mut impulse, &mut impulse_response, 
-                    oversample_factor, Some(6), &*opt_im);
+                    oversample_factor, Some(6), &*opt_im, false);
             write_to_wav(&impulse_response, oversample_factor, &(
                     "impulse-responses/".to_owned()
                     +opt_im.impulse_response_file_name()
@@ -581,27 +534,21 @@ mod tests {
         let mut impulse_response_reference = vec![0f32; impulse.len() * oversample_factor as usize];
         let mut impulse_response = vec![0f32; impulse.len() * oversample_factor as usize];
 
-        let opt_impls: Vec<Box<dyn Interpolator>> = vec![
+        let interpolators: Vec<Box<dyn Interpolator>> = vec![
                 Box::new(Spline3rdDegreeC1),
                 Box::new(Spline5thDegreeC1),
                 Box::new(Spline5thDegreeC0),
                 Box::new(SincTruncated),
                 Box::new(SincHann),
         ];
-        let ref_impls: Vec<Box<dyn Interpolator>> = vec![
-                Box::new(RefImpSpline3rdDegreeC1),
-                Box::new(RefImpSpline5thDegreeC1),
-                Box::new(RefImpSpline5thDegreeC0),
-                Box::new(RefImpSincTruncated),
-                Box::new(RefImpSincHann),
-        ];
 
-        for (opt_im, ref_im) 
-                in opt_impls.iter().zip(ref_impls.iter()){
+        for interpolator in interpolators {
             resample(&mut impulse, &mut impulse_response_reference, 
-                    oversample_factor, Some(6), &**opt_im);
+                    oversample_factor, Some(6), 
+                    &*interpolator, true);
             resample(&mut impulse, &mut impulse_response, 
-                    oversample_factor, Some(6), &**ref_im);
+                    oversample_factor, Some(6), 
+                    &*interpolator, false);
             compare_arrays(&impulse_response_reference, &impulse_response);
         }
     }

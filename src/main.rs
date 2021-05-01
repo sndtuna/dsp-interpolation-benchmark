@@ -278,28 +278,6 @@ impl Interpolator for Spline5thDegreeC1 {
         fourth_order_lagrange[0]*(1.0-x)
         +fourth_order_lagrange[1]*x
     }
-    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, frac_i: f32, 
-            _filter_size_points: Option<usize>) -> f32 {
-        let y = SlidingWindow::new(input, int_i as usize, 6);
-        let x = frac_i;
-        let mut fourth_order_lagrange = [0f32; 2];
-        fourth_order_lagrange[0] = 
-                y[-2]        *(x+1.0)*x*(x-1.0)*(x-2.0)*(1.0/24.0)
-                +y[-1]*(x+2.0)        *x*(x-1.0)*(x-2.0)*(-1.0/6.0)
-                +y[ 0]*(x+2.0)*(x+1.0)  *(x-1.0)*(x-2.0)*(1.0/4.0)
-                +y[ 1]*(x+2.0)*(x+1.0)*x        *(x-2.0)*(-1.0/6.0)
-                +y[ 2]*(x+2.0)*(x+1.0)*x*(x-1.0)        *(1.0/24.0);
-
-        fourth_order_lagrange[1] = 
-                y[-1]        *x*(x-1.0)*(x-2.0)*(x-3.0)*(1.0/24.0)
-            +y[ 0]*(x+1.0)  *(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/6.0)
-            +y[ 1]*(x+1.0)*x        *(x-2.0)*(x-3.0)*(1.0/4.0)
-            +y[ 2]*(x+1.0)*x*(x-1.0)        *(x-3.0)*(-1.0/6.0)
-            +y[ 3]*(x+1.0)*x*(x-1.0)*(x-2.0)        *(1.0/24.0);
-
-        fourth_order_lagrange[0]*(1.0-x)
-        +fourth_order_lagrange[1]*x
-    }
 }
 
 struct Spline5thDegreeC0;

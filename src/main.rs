@@ -62,6 +62,7 @@ fn main() {
             Box::new(Spline3rdDegreeC1),
             Box::new(Spline5thDegreeC0),
             Box::new(Spline5thDegreeC1),
+            Box::new(Spline7thDegreeC0),
             Box::new(SincTruncatedApprox),
             Box::new(SincTruncated),
             Box::new(SincHann),
@@ -70,6 +71,7 @@ fn main() {
             Box::new(Spline1stDegreeC0),
             Box::new(Spline3rdDegreeC1),
             Box::new(Spline5thDegreeC0),
+            Box::new(Spline7thDegreeC0),
             Box::new(SincTruncated),
             Box::new(SincHann),
     ];
@@ -360,6 +362,55 @@ impl Interpolator for Spline5thDegreeC0 {
     }
 }
 
+struct Spline7thDegreeC0;
+impl Interpolator for Spline7thDegreeC0 {
+    fn display_name(&self) -> &'static str {
+        "7th degree, C0-continuous, 8p"
+    } 
+    fn impulse_response_file_name(&self) -> &'static str {
+        "7th_C0_IR"
+    }
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        8
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        // 8 input samples is the minimum sliding window size needed for quintic splines. 
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
+        let x = frac_i;
+        let seventh_order_lagrange: f32 = 
+                 y[-3]        *(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)*(x-4.0)*(-1.0/5040.0)
+                +y[-2]*(x+3.0)        *(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)*(x-4.0)*(1.0/720.0)
+                +y[-1]*(x+3.0)*(x+2.0)        *x*(x-1.0)*(x-2.0)*(x-3.0)*(x-4.0)*(-1.0/240.0)
+                +y[ 0]*(x+3.0)*(x+2.0)*(x+1.0)  *(x-1.0)*(x-2.0)*(x-3.0)*(x-4.0)*(1.0/144.0)
+                +y[ 1]*(x+3.0)*(x+2.0)*(x+1.0)*x        *(x-2.0)*(x-3.0)*(x-4.0)*(-1.0/144.0)
+                +y[ 2]*(x+3.0)*(x+2.0)*(x+1.0)*x*(x-1.0)        *(x-3.0)*(x-4.0)*(1.0/240.0)
+                +y[ 3]*(x+3.0)*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)        *(x-4.0)*(-1.0/720.0)
+                +y[ 4]*(x+3.0)*(x+2.0)*(x+1.0)*x*(x-1.0)*(x-2.0)*(x-3.0)        *(1.0/5040.0);
+
+        seventh_order_lagrange
+    }
+    fn get_sample_interpolated(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
+        let x = frac_i;
+        // calculations are reordered to allow the compiler to reuse results.
+        let seventh_order_lagrange: f32 = 
+                              ((x+2.0)*((x+1.0)*(x*((x-1.0)*((x-2.0)*((x-3.0)*(x-4.0)))))))*(-1.0/5040.0)*y[-3] 
+                +      (x+3.0)        *((x+1.0)*(x*((x-1.0)*((x-2.0)*((x-3.0)*(x-4.0))))))   *(1.0/720.0)*y[-2]
+                +     ((x+3.0)*(x+2.0))        *(x*((x-1.0)*((x-2.0)*((x-3.0)*(x-4.0)))))   *(-1.0/240.0)*y[-1]
+                +    (((x+3.0)*(x+2.0))*(x+1.0))  *((x-1.0)*((x-2.0)*((x-3.0)*(x-4.0))))     *(1.0/144.0)*y[ 0]
+                +   ((((x+3.0)*(x+2.0))*(x+1.0))*x)        *((x-2.0)*((x-3.0)*(x-4.0)))     *(-1.0/144.0)*y[ 1]
+                +  (((((x+3.0)*(x+2.0))*(x+1.0))*x)*(x-1.0))        *((x-3.0)*(x-4.0))       *(1.0/240.0)*y[ 2]
+                + ((((((x+3.0)*(x+2.0))*(x+1.0))*x)*(x-1.0))*(x-2.0))        *(x-4.0)       *(-1.0/720.0)*y[ 3]
+                +(((((((x+3.0)*(x+2.0))*(x+1.0))*x)*(x-1.0))*(x-2.0))*(x-3.0))              *(1.0/5040.0)*y[ 4];
+
+        seventh_order_lagrange
+    }
+}
+
 struct SincTruncated;
 impl Interpolator for SincTruncated {
     fn display_name(&self) -> &'static str {
@@ -538,6 +589,7 @@ mod tests {
                 Box::new(Spline3rdDegreeC1),
                 Box::new(Spline5thDegreeC1),
                 Box::new(Spline5thDegreeC0),
+                Box::new(Spline7thDegreeC0),
                 Box::new(SincTruncated),
                 Box::new(SincHann),
                 Box::new(SincTruncatedApprox),
@@ -569,6 +621,7 @@ mod tests {
                 Box::new(Spline3rdDegreeC1),
                 Box::new(Spline5thDegreeC1),
                 Box::new(Spline5thDegreeC0),
+                Box::new(Spline7thDegreeC0),
                 Box::new(SincTruncated),
                 Box::new(SincHann),
         ];

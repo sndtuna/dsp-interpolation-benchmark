@@ -62,6 +62,7 @@ fn main() {
             Box::new(Spline3rdDegreeC1),
             Box::new(Spline5thDegreeC0),
             Box::new(Spline5thDegreeC1),
+            Box::new(Spline5thDegreeC2),
             Box::new(Spline7thDegreeC0),
             Box::new(SincTruncatedApprox),
             Box::new(SincTruncated),
@@ -314,6 +315,63 @@ impl Interpolator for Spline5thDegreeC1 {
 
         fourth_order_lagrange[0]*(1.0-x)
         +fourth_order_lagrange[1]*x
+    }
+}
+
+struct Spline5thDegreeC2;
+impl Interpolator for Spline5thDegreeC2 {
+    fn display_name(&self) -> &'static str {
+        "5th degree, C2-continuous, 6p"
+    } 
+    fn impulse_response_file_name(&self) -> &'static str {
+        "5th_C2_IR"
+    }
+    fn get_width_of_local_context_in_samples(&self) -> usize {
+        6
+    }
+    fn get_sample_interpolated_ref_impl(&self, input: &mut [f32], int_i: isize, 
+            frac_i: f32) -> f32 {
+        // references:
+        // https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-uniform.html
+        // https://en.wikipedia.org/wiki/B-spline#Cardinal_B-spline
+
+        // 6 input samples is the minimum sliding window size needed for quintic splines. 
+        let size = self.get_width_of_local_context_in_samples();
+        let y = SlidingWindow::new(input, int_i as usize, size);
+        let x = frac_i;
+        // C2-continuous interpolation of degree N can be made by blending  
+        // between three polynomial interpolations of degree (N-2).
+        // The blending function can limit the level of smoothness 
+        // (continuity of derivatives) of the end result so in this case it 
+        // needs to have C1-continuity by itself.
+        let mut third_order_lagrange = [0f32; 3];
+        third_order_lagrange[0] = 
+                 y[-2]        *(x+1.0)*x*(x-1.0)*(-1.0/6.0)
+                +y[-1]*(x+2.0)        *x*(x-1.0)*(1.0/2.0)
+                +y[ 0]*(x+2.0)*(x+1.0)  *(x-1.0)*(-1.0/2.0)
+                +y[ 1]*(x+2.0)*(x+1.0)*x        *(1.0/6.0);
+
+        third_order_lagrange[1] = 
+                 y[-1]        *x*(x-1.0)*(x-2.0)*(-1.0/6.0)
+                +y[ 0]*(x+1.0)  *(x-1.0)*(x-2.0)*(1.0/2.0)
+                +y[ 1]*(x+1.0)*x        *(x-2.0)*(-1.0/2.0)
+                +y[ 2]*(x+1.0)*x*(x-1.0)        *(1.0/6.0);
+
+        third_order_lagrange[2] = 
+                 y[ 0]  *(x-1.0)*(x-2.0)*(x-3.0)*(-1.0/6.0)
+                +y[ 1]*x        *(x-2.0)*(x-3.0)*(1.0/2.0)
+                +y[ 2]*x*(x-1.0)        *(x-3.0)*(-1.0/2.0)
+                +y[ 3]*x*(x-1.0)*(x-2.0)        *(1.0/6.0);
+
+        // B2-spline blending. 
+        // The piecewise definition has x ranging from 0 to 3 so almost all 
+        // pieces need to be shifted up from the 0 to 1 range used above. 
+        let x01 = x;
+        let x12 = x+1.0;
+        let x23 = x+2.0;
+         third_order_lagrange[2]*0.5*(x01*x01)
+        +third_order_lagrange[1]*0.5*(-2.0*x12*x12 + 6.0*x12 -3.0)
+        +third_order_lagrange[0]*0.5*(x23-3.0)*(x23-3.0)
     }
 }
 
@@ -589,6 +647,7 @@ mod tests {
                 Box::new(Spline3rdDegreeC1),
                 Box::new(Spline5thDegreeC1),
                 Box::new(Spline5thDegreeC0),
+                Box::new(Spline5thDegreeC2),
                 Box::new(Spline7thDegreeC0),
                 Box::new(SincTruncated),
                 Box::new(SincHann),

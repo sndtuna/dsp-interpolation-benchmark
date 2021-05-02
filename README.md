@@ -19,23 +19,24 @@ Output on the dev machine (Ryzen 2700X):
 ```
 Using test length of 131072 samples...
 
-(warmup):                                 6.7 ns/sample.
+(warmup):                                 6.9 ns/sample.
+(warmup):                                 7.0 ns/sample.
 (warmup):                                 6.6 ns/sample.
-(warmup):                                 6.7 ns/sample.
 1st degree(linear), C0-continuous, 2p:    4.9 ns/sample.
-3rd degree(cubic), C1-continuous, 4p:     6.7 ns/sample.
-5th degree, C0-continuous, 6p:           12.4 ns/sample.
-5th degree, C1-continuous, 6p:           16.4 ns/sample.
-7th degree, C0-continuous, 8p:           17.0 ns/sample.
-truncated sinc(sin approx.), 6p:         14.8 ns/sample.
-truncated sinc, 6p:                      18.5 ns/sample.
-hann windowed sinc, 6p:                  44.6 ns/sample.
+3rd degree(cubic), C1-continuous, 4p:     6.6 ns/sample.
+5th degree, C0-continuous, 6p:           12.2 ns/sample.
+5th degree, C1-continuous, 6p:           16.3 ns/sample.
+5th degree, C2-continuous, 6p:           16.4 ns/sample.
+7th degree, C0-continuous, 8p:           16.9 ns/sample.
+truncated sinc(sin approx.), 6p:         14.4 ns/sample.
+truncated sinc, 6p:                      18.3 ns/sample.
+hann windowed sinc, 6p:                  43.6 ns/sample.
 
 ------unoptimized-reference-implementations------
-1st degree(linear), C0-continuous, 2p:    5.5 ns/sample.
-3rd degree(cubic), C1-continuous, 4p:    10.1 ns/sample.
-5th degree, C0-continuous, 6p:           14.0 ns/sample.
-7th degree, C0-continuous, 8p:           18.0 ns/sample.
-truncated sinc, 6p:                      38.7 ns/sample.
-hann windowed sinc, 6p:                  62.7 ns/sample.
+1st degree(linear), C0-continuous, 2p:    5.4 ns/sample.
+3rd degree(cubic), C1-continuous, 4p:     9.6 ns/sample.
+5th degree, C0-continuous, 6p:           13.8 ns/sample.
+7th degree, C0-continuous, 8p:           17.7 ns/sample.
+truncated sinc, 6p:                      37.9 ns/sample.
+hann windowed sinc, 6p:                  62.4 ns/sample.
 ```
